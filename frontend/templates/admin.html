@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Admin{% endblock %}
+{% block content %}
+<h1>Course Administration</h1>
+<p style="color:var(--text-muted);margin-bottom:8px">Add programs, subjects, and units</p>
+<a href="{{ url_for('admin_quizzes') }}" class="btn btn-purple btn-sm" style="margin-bottom:24px">✨ Create Custom Quiz</a>
+
+<div class="card">
+    <div class="card-header">
+        <h3>🎓 Programs</h3>
+    </div>
+    <form method="POST" action="{{ url_for('add_program') }}" style="display:flex;gap:8px;margin-bottom:16px">
+        <input type="text" name="name" placeholder="Program name (e.g. B.Tech CSE)" required style="flex:1">
+        <input type="number" name="total_semesters" value="8" min="1" max="12" style="width:80px">
+        <button type="submit" class="btn btn-primary btn-sm">Add</button>
+    </form>
+    {% if programs %}
+    <ul class="item-list">
+        {% for prog in programs %}
+        <li>
+            <div class="item-info">
+                <a href="{{ url_for('admin_subjects', program_id=prog.id) }}" class="title" style="text-decoration:none;color:var(--primary)">{{ prog.name }}</a>
+                <div class="meta">{{ prog.total_semesters }} semesters</div>
+            </div>
+            <form method="POST" action="{{ url_for('delete_program', program_id=prog.id) }}" style="display:inline">
+                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this program and all its subjects?')">Delete</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color:var(--text-muted)">No programs yet. Add one above.</p>
+    {% endif %}
+</div>
+{% endblock %}

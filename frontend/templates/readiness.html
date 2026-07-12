@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Readiness{% endblock %}
+{% block content %}
+<h1>Exam Readiness</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Track your preparedness across all subjects</p>
+
+{% set subject_scores = scores|selectattr('unit_number', 'none')|list %}
+{% set avg = (subject_scores|sum(attribute='score') / subject_scores|length)|round|int if subject_scores else 0 %}
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="label">Overall Readiness</div>
+        <div class="value" style="color:{{ 'var(--success)' if avg >= 60 else 'var(--warning)' if avg >= 30 else 'var(--danger)' }}">{{ avg }}%</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Subjects Tracked</div>
+        <div class="value">{{ subject_scores|length }}</div>
+    </div>
+</div>
+
+{% if subject_scores %}
+{% for s in subject_scores %}
+<div class="card">
+    <div class="card-header">
+        <h3>{{ s.subject_code }}</h3>
+        <span class="badge {{ 'badge-green' if s.score >= 75 else 'badge-yellow' if s.score >= 50 else 'badge-red' }}">{{ s.score|int }}%</span>
+    </div>
+    <div class="progress-bar">
+        <div class="progress-fill {{ 'green' if s.score >= 75 else 'yellow' if s.score >= 50 else 'red' }}" style="width:{{ s.score }}%"></div>
+    </div>
+    {% set unit_scores = scores|selectattr('subject_code', 'equalto', s.subject_code)|rejectattr('unit_number', 'none')|list %}
+    {% if unit_scores %}
+    <div style="margin-top:12px;padding-left:12px;border-left:2px solid var(--border)">
+        {% for u in unit_scores|sort(attribute='unit_number') %}
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+            <span style="font-size:0.8rem;color:var(--text-muted);width:60px">Unit {{ u.unit_number }}</span>
+            <div class="progress-bar" style="flex:1">
+                <div class="progress-fill {{ 'green' if u.score >= 75 else 'yellow' if u.score >= 50 else 'red' }}" style="width:{{ u.score }}%"></div>
+            </div>
+            <span style="font-size:0.8rem;font-weight:600;width:40px;text-align:right">{{ u.score|int }}%</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="card">
+    <p style="color:var(--text-muted);text-align:center">No readiness scores yet. Log study sessions and take quizzes to build your scores.</p>
+</div>
+{% endif %}
+{% endblock %}

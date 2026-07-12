@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Manage your profile and preferences</p>
+
+<div class="card">
+    <h3>Profile</h3>
+    <form method="POST" style="margin-top:12px">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Name</label>
+                <input type="text" name="name" value="{{ profile.get('name', '') }}">
+            </div>
+            <div class="form-group">
+                <label>College</label>
+                <input type="text" name="college" value="{{ profile.get('college', '') }}">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>University</label>
+                <input type="text" name="university" value="{{ profile.get('university', '') }}">
+            </div>
+            <div class="form-group">
+                <label>Semester</label>
+                <select name="current_semester">
+                    {% for s in range(1, 9) %}
+                    <option value="{{ s }}" {{ 'selected' if profile.get('current_semester') == s }}>Semester {{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Daily Study Target (hrs)</label>
+                <input type="number" name="daily_study_hours_target" value="{{ profile.get('daily_study_hours_target', 2) }}" min="0.5" max="16" step="0.5">
+            </div>
+            <div class="form-group">
+                <label>Goal Type</label>
+                <select name="goal_type">
+                    <option value="semester_exam" {{ 'selected' if profile.get('goal_type') == 'semester_exam' }}>Semester Exams</option>
+                    <option value="placement_prep" {{ 'selected' if profile.get('goal_type') == 'placement_prep' }}>Placement Prep</option>
+                    <option value="competitive_exam" {{ 'selected' if profile.get('goal_type') == 'competitive_exam' }}>Competitive Exam</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Save Profile</button>
+    </form>
+</div>
+{% endblock %}

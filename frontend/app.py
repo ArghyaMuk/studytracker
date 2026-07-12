@@ -1,0 +1,472 @@
+import os
+import requests
+from functools import wraps
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "studypilot-flask-secret-change-me")
+
+# Custom Jinja2 filter
+import json as json_module
+app.jinja_env.filters['from_json'] = lambda s: json_module.loads(s) if s else []
+
+API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
+
+
+# ── Helpers ──
+
+def api_headers():
+    """Get headers with JWT token for API calls."""
+    token = session.get("access_token")
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def api_get(endpoint):
+    """Make authenticated GET request to backend."""
+    try:
+        r = requests.get(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=10)
+        return r.json() if r.status_code == 200 else None
+    except Exception:
+        return None
+
+
+def api_post(endpoint, data):
+    """Make authenticated POST request to backend."""
+    try:
+        r = requests.post(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=10)
+        return r.status_code, r.json()
+    except Exception as e:
+        return 500, {"detail": str(e)}
+
+
+def api_put(endpoint, data):
+    """Make authenticated PUT request to backend."""
+    try:
+        r = requests.put(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=10)
+        return r.status_code, r.json()
+    except Exception as e:
+        return 500, {"detail": str(e)}
+
+
+def api_delete(endpoint):
+    """Make authenticated DELETE request to backend."""
+    try:
+        r = requests.delete(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=10)
+        return r.status_code
+    except Exception:
+        return 500
+
+
+def login_required(f):
+    """Decorator to require login."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "access_token" not in session:
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def admin_required(f):
+    """Decorator to require admin login."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if session.get("email") != "admin@studypilot.com":
+            flash("Admin access required", "error")
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ── Auth Routes ──
+
+@app.route("/")
+def index():
+    if "access_token" in session:
+        return redirect(url_for("dashboard"))
+    return redirect(url_for("login"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        email = request.form["email"]
+        password = request.form["password"]
+        status, data = api_post("/auth/login", {"email": email, "password": password})
+        if status == 200:
+            session["access_token"] = data["access_token"]
+            session["refresh_token"] = data["refresh_token"]
+            # Decode user ID from token
+            import base64, json
+            payload = json.loads(base64.b64decode(data["access_token"].split(".")[1] + "=="))
+            session["user_id"] = int(payload["sub"])
+            session["email"] = payload["email"]
+            # Fetch profile
+            profile = api_get(f"/users/{session['user_id']}")
+            if profile:
+                session["user_name"] = profile.get("name", "")
+            flash("Welcome back!", "success")
+            return redirect(url_for("dashboard"))
+        else:
+            flash(data.get("detail", "Login failed"), "error")
+    return render_template("login.html")
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        data = {
+            "name": request.form["name"],
+            "email": request.form["email"],
+            "password": request.form["password"],
+            "college": request.form.get("college", ""),
+            "university": request.form.get("university", ""),
+            "current_semester": int(request.form.get("current_semester", 1)),
+        }
+        status, resp = api_post("/auth/register", data)
+        if status == 201:
+            session["access_token"] = resp["access_token"]
+            session["refresh_token"] = resp["refresh_token"]
+            import base64, json
+            payload = json.loads(base64.b64decode(resp["access_token"].split(".")[1] + "=="))
+            session["user_id"] = int(payload["sub"])
+            session["email"] = payload["email"]
+            session["user_name"] = data["name"]
+            flash("Account created!", "success")
+            return redirect(url_for("dashboard"))
+        else:
+            flash(resp.get("detail", "Registration failed"), "error")
+    return render_template("register.html")
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+# ── Dashboard ──
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
+    user_id = session["user_id"]
+    sessions_data = api_get(f"/sessions?user_id={user_id}") or []
+    revision = api_get(f"/revision/today?user_id={user_id}") or []
+    readiness = api_get(f"/readiness/{user_id}") or []
+    return render_template("dashboard.html",
+                           sessions=sessions_data,
+                           revision=revision,
+                           readiness=readiness)
+
+
+# ── Study Sessions ──
+
+@app.route("/sessions")
+@login_required
+def sessions_page():
+    user_id = session["user_id"]
+    sessions_data = api_get(f"/sessions?user_id={user_id}") or []
+    return render_template("sessions.html", sessions=sessions_data)
+
+
+@app.route("/sessions/add", methods=["POST"])
+@login_required
+def add_session():
+    user_id = session["user_id"]
+    data = {
+        "subject_code": request.form["subject_code"],
+        "unit_number": int(request.form["unit_number"]),
+        "duration_min": int(request.form["duration_min"]),
+        "focus_rating": int(request.form["focus_rating"]),
+        "notes": request.form.get("notes", ""),
+    }
+    status, resp = api_post(f"/sessions?user_id={user_id}", data)
+    if status == 201:
+        flash("Session logged!", "success")
+    else:
+        flash(resp.get("detail", "Failed to log session"), "error")
+    return redirect(url_for("sessions_page"))
+
+
+@app.route("/sessions/delete/<int:session_id>", methods=["POST"])
+@login_required
+def delete_session(session_id):
+    status = api_delete(f"/sessions/{session_id}")
+    if status == 204:
+        flash("Session deleted", "success")
+    else:
+        flash("Failed to delete", "error")
+    return redirect(url_for("sessions_page"))
+
+
+# ── Quizzes ──
+
+@app.route("/quizzes")
+@login_required
+def quizzes_page():
+    return render_template("quizzes.html")
+
+
+@app.route("/quizzes/generate", methods=["POST"])
+@login_required
+def generate_quiz():
+    user_id = session["user_id"]
+    data = {
+        "subject_code": request.form["subject_code"],
+        "unit_number": int(request.form["unit_number"]),
+        "difficulty": request.form.get("difficulty", "medium"),
+        "count": int(request.form.get("count", 5)),
+        "mode": request.form.get("mode", "mcq"),
+    }
+    status, resp = api_post(f"/quizzes/generate?user_id={user_id}", data)
+    if status == 201:
+        quiz_id = resp["id"]
+        quiz = api_get(f"/quizzes/{quiz_id}")
+        return render_template("quiz_take.html", quiz=quiz)
+    else:
+        flash(resp.get("detail", "Failed to generate quiz"), "error")
+        return redirect(url_for("quizzes_page"))
+
+
+@app.route("/quizzes/<int:quiz_id>/submit", methods=["POST"])
+@login_required
+def submit_quiz(quiz_id):
+    user_id = session["user_id"]
+    answers = {}
+    for key, value in request.form.items():
+        if key.startswith("q_"):
+            q_id = int(key.replace("q_", ""))
+            answers[q_id] = value
+    status, resp = api_post(f"/quizzes/{quiz_id}/submit?user_id={user_id}", {"answers": answers})
+    if status == 200:
+        return render_template("quiz_result.html", result=resp)
+    else:
+        flash("Failed to submit quiz", "error")
+        return redirect(url_for("quizzes_page"))
+
+
+# ── Revision ──
+
+@app.route("/revision")
+@login_required
+def revision_page():
+    user_id = session["user_id"]
+    today = api_get(f"/revision/today?user_id={user_id}") or []
+    upcoming = api_get(f"/revision/upcoming?user_id={user_id}&days=7") or []
+    return render_template("revision.html", today=today, upcoming=upcoming)
+
+
+@app.route("/revision/<int:item_id>/grade", methods=["POST"])
+@login_required
+def grade_revision(item_id):
+    quality = int(request.form["quality"])
+    api_post(f"/revision/{item_id}/grade", {"quality": quality})
+    flash("Revision recorded!", "success")
+    return redirect(url_for("revision_page"))
+
+
+# ── Readiness ──
+
+@app.route("/readiness")
+@login_required
+def readiness_page():
+    user_id = session["user_id"]
+    scores = api_get(f"/readiness/{user_id}") or []
+    return render_template("readiness.html", scores=scores)
+
+
+# ── Settings ──
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings_page():
+    user_id = session["user_id"]
+    if request.method == "POST":
+        data = {
+            "name": request.form.get("name"),
+            "college": request.form.get("college"),
+            "university": request.form.get("university"),
+            "current_semester": int(request.form.get("current_semester", 1)),
+            "daily_study_hours_target": float(request.form.get("daily_study_hours_target", 2)),
+            "goal_type": request.form.get("goal_type", "semester_exam"),
+        }
+        status, resp = api_put(f"/users/{user_id}", data)
+        if status == 200:
+            session["user_name"] = data["name"]
+            flash("Profile updated!", "success")
+        else:
+            flash("Failed to update", "error")
+        return redirect(url_for("settings_page"))
+
+    profile = api_get(f"/users/{user_id}") or {}
+    return render_template("settings.html", profile=profile)
+
+
+# ── Admin ──
+
+@app.route("/admin")
+@login_required
+@admin_required
+def admin_page():
+    programs = api_get("/programs") or []
+    return render_template("admin.html", programs=programs)
+
+
+@app.route("/admin/programs/add", methods=["POST"])
+@login_required
+@admin_required
+def add_program():
+    data = {
+        "name": request.form["name"],
+        "total_semesters": int(request.form["total_semesters"]),
+    }
+    status, resp = api_post("/admin/programs", data)
+    if status == 201:
+        flash(f'Program "{data["name"]}" created!', "success")
+    else:
+        flash(resp.get("detail", "Failed"), "error")
+    return redirect(url_for("admin_page"))
+
+
+@app.route("/admin/programs/<int:program_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_program(program_id):
+    status = api_delete(f"/admin/programs/{program_id}")
+    if status == 204:
+        flash("Program deleted", "success")
+    else:
+        flash("Failed to delete", "error")
+    return redirect(url_for("admin_page"))
+
+
+@app.route("/admin/programs/<int:program_id>/subjects")
+@login_required
+@admin_required
+def admin_subjects(program_id):
+    semester = int(request.args.get("semester", 1))
+    programs = api_get("/programs") or []
+    program = next((p for p in programs if p["id"] == program_id), None)
+    subjects = api_get(f"/programs/{program_id}/semesters/{semester}/subjects") or []
+    return render_template("admin_subjects.html",
+                           program=program, subjects=subjects,
+                           semester=semester, programs=programs)
+
+
+@app.route("/admin/programs/<int:program_id>/subjects/add", methods=["POST"])
+@login_required
+@admin_required
+def add_subject(program_id):
+    semester = int(request.form.get("semester", 1))
+    units = []
+    i = 1
+    while f"unit_title_{i}" in request.form:
+        title = request.form[f"unit_title_{i}"]
+        topics = request.form.get(f"unit_topics_{i}", "")
+        if title.strip():
+            units.append({"unit_number": i, "unit_title": title, "topics_json": topics})
+        i += 1
+
+    data = {
+        "code": request.form["code"],
+        "name": request.form["name"],
+        "semester": semester,
+        "type": request.form.get("type", "theory"),
+        "credits": int(request.form.get("credits", 3)),
+        "units": units,
+    }
+    status, resp = api_post(f"/admin/programs/{program_id}/subjects", data)
+    if status == 201:
+        flash(f'Subject "{data["name"]}" added!', "success")
+    else:
+        flash(resp.get("detail", "Failed"), "error")
+    return redirect(url_for("admin_subjects", program_id=program_id, semester=semester))
+
+
+@app.route("/admin/subjects/<int:subject_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_subject(subject_id):
+    program_id = request.form.get("program_id", 1)
+    semester = request.form.get("semester", 1)
+    status = api_delete(f"/admin/subjects/{subject_id}")
+    if status == 204:
+        flash("Subject deleted", "success")
+    else:
+        flash("Failed to delete", "error")
+    return redirect(url_for("admin_subjects", program_id=program_id, semester=semester))
+
+
+@app.route("/admin/quizzes", methods=["GET", "POST"])
+@login_required
+@admin_required
+def admin_quizzes():
+    if request.method == "POST":
+        action = request.form.get("action")
+
+        if action == "generate":
+            # Generate from AI
+            user_id = session["user_id"]
+            data = {
+                "subject_code": request.form["subject_code"],
+                "unit_number": int(request.form["unit_number"]),
+                "difficulty": request.form.get("difficulty", "medium"),
+                "count": int(request.form.get("count", 5)),
+                "mode": request.form.get("mode", "mcq"),
+            }
+            status, resp = api_post(f"/quizzes/generate?user_id={user_id}", data)
+            if status == 201:
+                quiz = api_get(f"/quizzes/{resp['id']}")
+                flash(f"Quiz generated with {len(quiz.get('questions', []))} questions!", "success")
+            else:
+                flash(resp.get("detail", "Generation failed"), "error")
+
+        elif action == "manual":
+            # Manual quiz creation
+            questions = []
+            i = 1
+            while f"question_{i}" in request.form:
+                q = {
+                    "question": request.form[f"question_{i}"],
+                    "options_json": None,
+                    "correct_answer": request.form.get(f"answer_{i}", "A"),
+                    "difficulty": request.form.get(f"difficulty_{i}", "medium"),
+                }
+                if request.form.get("mode") == "mcq":
+                    options = [
+                        request.form.get(f"option_{i}_A", ""),
+                        request.form.get(f"option_{i}_B", ""),
+                        request.form.get(f"option_{i}_C", ""),
+                        request.form.get(f"option_{i}_D", ""),
+                    ]
+                    import json
+                    q["options_json"] = json.dumps(options)
+                questions.append(q)
+                i += 1
+
+            if questions:
+                data = {
+                    "subject_code": request.form["subject_code"],
+                    "unit_number": int(request.form["unit_number"]),
+                    "mode": request.form.get("mode", "mcq"),
+                    "questions": questions,
+                }
+                status, resp = api_post("/admin/quizzes/custom", data)
+                if status == 201:
+                    flash(f"Custom quiz created with {resp.get('question_count', 0)} questions!", "success")
+                else:
+                    flash(resp.get("detail", "Failed"), "error")
+
+        return redirect(url_for("admin_quizzes"))
+    return render_template("admin_quizzes.html")
+
+
+if __name__ == "__main__":
+    app.run(debug=True, port=3000)

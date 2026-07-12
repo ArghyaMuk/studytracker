@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% block title %}Admin - Custom Quizzes{% endblock %}
+{% block content %}
+<h1>Create Custom Quiz</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">
+    Generate from AI or add questions manually •
+    <a href="{{ url_for('admin_page') }}" style="color:var(--primary);text-decoration:none">← Back to Admin</a>
+</p>
+
+<!-- AI Generate -->
+<div class="card">
+    <h3>✨ Generate with AI (Gemini / OpenRouter)</h3>
+    <form method="POST" style="margin-top:12px">
+        <input type="hidden" name="action" value="generate">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Subject Code</label>
+                <input type="text" name="subject_code" required placeholder="e.g. CS301">
+            </div>
+            <div class="form-group">
+                <label>Unit Number</label>
+                <input type="number" name="unit_number" value="1" min="1" required>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Questions</label>
+                <input type="number" name="count" value="5" min="1" max="20">
+            </div>
+            <div class="form-group">
+                <label>Difficulty</label>
+                <select name="difficulty">
+                    <option value="easy">Easy</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="hard">Hard</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Mode</label>
+            <select name="mode"><option value="mcq">MCQ</option><option value="viva">Viva Q&A</option></select>
+        </div>
+        <button type="submit" class="btn btn-purple">✨ Generate Quiz</button>
+    </form>
+</div>
+
+<!-- Manual Add -->
+<div class="card">
+    <h3>✍️ Add Questions Manually</h3>
+    <form method="POST" style="margin-top:12px">
+        <input type="hidden" name="action" value="manual">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Subject Code</label>
+                <input type="text" name="subject_code" required placeholder="e.g. CS301">
+            </div>
+            <div class="form-group">
+                <label>Unit Number</label>
+                <input type="number" name="unit_number" value="1" min="1" required>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Mode</label>
+            <select name="mode" id="manual-mode" onchange="toggleMode()">
+                <option value="mcq">MCQ</option>
+                <option value="viva">Viva Q&A</option>
+            </select>
+        </div>
+
+        <div id="questions-container">
+            <div class="card" style="background:#f8fafc;border:1px dashed var(--border)">
+                <strong>Question 1</strong>
+                <div class="form-group" style="margin-top:8px">
+                    <textarea name="question_1" placeholder="Enter your question..." required></textarea>
+                </div>
+                <div class="mcq-options">
+                    <div class="form-row">
+                        <div class="form-group"><label>A</label><input type="text" name="option_1_A" placeholder="Option A"></div>
+                        <div class="form-group"><label>B</label><input type="text" name="option_1_B" placeholder="Option B"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>C</label><input type="text" name="option_1_C" placeholder="Option C"></div>
+                        <div class="form-group"><label>D</label><input type="text" name="option_1_D" placeholder="Option D"></div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Correct Answer</label>
+                        <select name="answer_1"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Difficulty</label>
+                        <select name="difficulty_1"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top:12px;display:flex;gap:8px">
+            <button type="button" onclick="addQuestion()" class="btn btn-secondary">+ Add Question</button>
+            <button type="submit" class="btn btn-primary">Save Quiz</button>
+        </div>
+    </form>
+</div>
+
+<script>
+let qCount = 1;
+function addQuestion() {
+    qCount++;
+    const container = document.getElementById('questions-container');
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.cssText = 'background:#f8fafc;border:1px dashed var(--border)';
+    div.innerHTML = `
+        <strong>Question ${qCount}</strong>
+        <div class="form-group" style="margin-top:8px">
+            <textarea name="question_${qCount}" placeholder="Enter your question..." required></textarea>
+        </div>
+        <div class="mcq-options">
+            <div class="form-row">
+                <div class="form-group"><label>A</label><input type="text" name="option_${qCount}_A" placeholder="Option A"></div>
+                <div class="form-group"><label>B</label><input type="text" name="option_${qCount}_B" placeholder="Option B"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>C</label><input type="text" name="option_${qCount}_C" placeholder="Option C"></div>
+                <div class="form-group"><label>D</label><input type="text" name="option_${qCount}_D" placeholder="Option D"></div>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Correct Answer</label><select name="answer_${qCount}"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
+            <div class="form-group"><label>Difficulty</label><select name="difficulty_${qCount}"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></div>
+        </div>`;
+    container.appendChild(div);
+}
+function toggleMode() {
+    const mode = document.getElementById('manual-mode').value;
+    document.querySelectorAll('.mcq-options').forEach(el => {
+        el.style.display = mode === 'mcq' ? 'block' : 'none';
+    });
+}
+</script>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Take Quiz{% endblock %}
+{% block content %}
+<h1>Quiz — {{ quiz.subject_code }} Unit {{ quiz.unit_number }}</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">{{ quiz.questions|length }} questions • {{ quiz.mode|upper }}</p>
+
+<form method="POST" action="{{ url_for('submit_quiz', quiz_id=quiz.id) }}">
+    {% for q in quiz.questions %}
+    <div class="card">
+        <p style="font-weight:600;margin-bottom:12px">{{ loop.index }}. {{ q.question }}</p>
+        {% if quiz.mode == 'mcq' and q.options_json %}
+            {% set options = q.options_json | tojson | replace('\\"', '"') %}
+            {% for opt in (q.options_json | from_json if q.options_json is string else []) %}
+            <label class="quiz-option">
+                <input type="radio" name="q_{{ q.id }}" value="{{ 'ABCD'[loop.index0] }}" required>
+                <strong>{{ 'ABCD'[loop.index0] }}.</strong> {{ opt }}
+            </label>
+            {% endfor %}
+        {% else %}
+            <textarea name="q_{{ q.id }}" placeholder="Type your answer..." rows="3" style="width:100%"></textarea>
+        {% endif %}
+    </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-success">Submit Quiz</button>
+</form>
+{% endblock %}

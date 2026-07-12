@@ -18,9 +18,9 @@ echo [2/3] Waiting for services to be healthy...
 timeout /t 15 /nobreak >nul
 
 echo.
-echo [3/3] Starting frontend (Next.js)...
+echo [3/3] Starting frontend (Flask)...
 cd frontend
-start "StudyPilot Frontend" cmd /c "npm run dev"
+start "StudyPilot Frontend" cmd /c "pip install -r requirements.txt -q && python app.py"
 cd ..
 
 echo.

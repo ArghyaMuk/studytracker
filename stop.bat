@@ -4,7 +4,7 @@ echo   StudyPilot - Stopping All Services
 echo ============================================
 echo.
 
-echo [1/2] Stopping frontend (Next.js)...
+echo [1/2] Stopping frontend (Flask)...
 taskkill /f /fi "WINDOWTITLE eq StudyPilot Frontend" >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3000 ^| findstr LISTENING') do (
     taskkill /f /pid %%a >nul 2>&1

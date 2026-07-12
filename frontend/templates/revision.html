@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Revision{% endblock %}
+{% block content %}
+<h1>Spaced Repetition</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Smart revision scheduling — review what's due today</p>
+
+<div class="card">
+    <h3>📅 Due Today ({{ today|length }})</h3>
+    {% if today %}
+    <ul class="item-list" style="margin-top:12px">
+        {% for item in today %}
+        <li>
+            <div class="item-info">
+                <div class="title">{{ item.subject_code }} — Unit {{ item.unit_number }}</div>
+                <div class="meta">Interval: {{ item.interval_days }}d • Level: {{ item.repetitions }}</div>
+            </div>
+            <div class="grade-btns">
+                <form method="POST" action="{{ url_for('grade_revision', item_id=item.id) }}" style="display:inline">
+                    <input type="hidden" name="quality" value="1">
+                    <button type="submit" class="btn btn-danger btn-sm">Forgot</button>
+                </form>
+                <form method="POST" action="{{ url_for('grade_revision', item_id=item.id) }}" style="display:inline">
+                    <input type="hidden" name="quality" value="3">
+                    <button type="submit" class="btn btn-secondary btn-sm">Hard</button>
+                </form>
+                <form method="POST" action="{{ url_for('grade_revision', item_id=item.id) }}" style="display:inline">
+                    <input type="hidden" name="quality" value="4">
+                    <button type="submit" class="btn btn-primary btn-sm">Good</button>
+                </form>
+                <form method="POST" action="{{ url_for('grade_revision', item_id=item.id) }}" style="display:inline">
+                    <input type="hidden" name="quality" value="5">
+                    <button type="submit" class="btn btn-success btn-sm">Easy</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color:var(--text-muted);margin-top:12px">✅ All caught up! No reviews due today.</p>
+    {% endif %}
+</div>
+
+{% if upcoming %}
+<div class="card">
+    <h3>Upcoming This Week</h3>
+    <table style="margin-top:12px">
+        <thead>
+            <tr><th>Subject</th><th>Unit</th><th>Due Date</th><th>Interval</th></tr>
+        </thead>
+        <tbody>
+            {% for item in upcoming %}
+            <tr>
+                <td>{{ item.subject_code }}</td>
+                <td>Unit {{ item.unit_number }}</td>
+                <td>{{ item.next_review_date }}</td>
+                <td>{{ item.interval_days }}d</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

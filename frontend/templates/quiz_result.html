@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Quiz Results{% endblock %}
+{% block content %}
+<div style="text-align:center;margin-bottom:32px">
+    <h1 style="font-size:2.5rem">{{ '%.0f' % result.score }}%</h1>
+    <p style="color:var(--text-muted)">{{ result.correct_count }}/{{ result.total_questions }} correct</p>
+</div>
+
+<div class="card">
+    <h3>Results Breakdown</h3>
+    <div style="margin-top:12px">
+        {% for fb in result.feedback %}
+        <div class="{{ 'result-correct' if fb.correct else 'result-wrong' }}">
+            <strong>Question {{ loop.index }}:</strong>
+            {% if fb.correct %}
+                ✅ Correct
+            {% else %}
+                ❌ Wrong — Correct answer: {{ fb.correct_answer }}
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<a href="{{ url_for('quizzes_page') }}" class="btn btn-primary" style="margin-top:16px">Take Another Quiz</a>
+{% endblock %}

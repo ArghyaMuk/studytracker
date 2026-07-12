@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Admin - Subjects{% endblock %}
+{% block content %}
+<h1>{{ program.name if program else 'Program' }} — Semester {{ semester }}</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">
+    <a href="{{ url_for('admin_page') }}" style="color:var(--primary);text-decoration:none">← Back to Programs</a>
+</p>
+
+<!-- Semester tabs -->
+<div class="tabs">
+    {% for s in range(1, (program.total_semesters if program else 8) + 1) %}
+    <a href="{{ url_for('admin_subjects', program_id=program.id, semester=s) }}" class="tab {{ 'active' if s == semester }}">Sem {{ s }}</a>
+    {% endfor %}
+</div>
+
+<!-- Add subject form -->
+<div class="card">
+    <h3>Add Subject to Semester {{ semester }}</h3>
+    <form method="POST" action="{{ url_for('add_subject', program_id=program.id) }}" style="margin-top:12px">
+        <input type="hidden" name="semester" value="{{ semester }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Subject Code</label>
+                <input type="text" name="code" required placeholder="e.g. CS301">
+            </div>
+            <div class="form-group">
+                <label>Subject Name</label>
+                <input type="text" name="name" required placeholder="e.g. Data Structures">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Type</label>
+                <select name="type"><option value="theory">Theory</option><option value="lab">Lab</option></select>
+            </div>
+            <div class="form-group">
+                <label>Credits</label>
+                <input type="number" name="credits" value="3" min="1" max="10">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Units (one per row)</label>
+            <div id="units-container">
+                <div style="display:flex;gap:8px;margin-bottom:8px">
+                    <input type="text" name="unit_title_1" placeholder="Unit 1 title" style="flex:1" required>
+                    <input type="text" name="unit_topics_1" placeholder='Topics: ["arrays","trees"]' style="flex:1">
+                </div>
+            </div>
+            <button type="button" onclick="addUnit()" class="btn btn-secondary btn-sm">+ Add Unit</button>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Subject</button>
+    </form>
+</div>
+
+<!-- Subjects list -->
+{% if subjects %}
+{% for s in subjects %}
+<div class="card">
+    <div class="card-header">
+        <div>
+            <span class="badge badge-blue">{{ s.code }}</span>
+            <strong style="margin-left:8px">{{ s.name }}</strong>
+            <span class="badge {{ 'badge-purple' if s.type == 'theory' else 'badge-green' }}" style="margin-left:8px">{{ s.type }}</span>
+            <span style="color:var(--text-muted);font-size:0.8rem;margin-left:8px">{{ s.credits }} cr</span>
+        </div>
+        <form method="POST" action="{{ url_for('delete_subject', subject_id=s.id) }}">
+            <input type="hidden" name="program_id" value="{{ program.id }}">
+            <input type="hidden" name="semester" value="{{ semester }}">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this subject?')">Delete</button>
+        </form>
+    </div>
+    {% if s.units %}
+    <div style="padding-left:12px;border-left:2px solid var(--border)">
+        {% for u in s.units %}
+        <div style="font-size:0.875rem;color:var(--text-muted);margin-bottom:4px">
+            <strong>Unit {{ u.unit_number }}:</strong> {{ u.unit_title }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+{% else %}
+<div class="card"><p style="color:var(--text-muted);text-align:center">No subjects in Semester {{ semester }}. Add one above.</p></div>
+{% endif %}
+
+<script>
+let unitCount = 1;
+function addUnit() {
+    unitCount++;
+    const container = document.getElementById('units-container');
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px';
+    div.innerHTML = `<input type="text" name="unit_title_${unitCount}" placeholder="Unit ${unitCount} title" style="flex:1" required>
+                     <input type="text" name="unit_topics_${unitCount}" placeholder='Topics JSON' style="flex:1">`;
+    container.appendChild(div);
+}
+</script>
+{% endblock %}

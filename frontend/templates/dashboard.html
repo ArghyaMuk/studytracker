@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1 style="margin-bottom:4px">Welcome back{{ ', ' + session.get('user_name', '').split(' ')[0] if session.get('user_name') else '' }}</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Here's your study overview</p>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="label">Sessions Logged</div>
+        <div class="value">{{ sessions|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Due for Revision</div>
+        <div class="value">{{ revision|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Avg Readiness</div>
+        <div class="value">{{ '%d' % ((readiness|sum(attribute='score')) / (readiness|length)) if readiness else 0 }}%</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Subjects Tracked</div>
+        <div class="value">{{ readiness|selectattr('unit_number', 'none')|list|length }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>📅 Today's Revision Plan</h2>
+    {% if revision %}
+    <ul class="item-list" style="margin-top:12px">
+        {% for item in revision[:5] %}
+        <li>
+            <div class="item-info">
+                <div class="title">{{ item.subject_code }} — Unit {{ item.unit_number }}</div>
+                <div class="meta">Interval: {{ item.interval_days }}d • Repetitions: {{ item.repetitions }}</div>
+            </div>
+            <span class="badge badge-yellow">Due today</span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color:var(--text-muted);margin-top:12px">No items due for revision today. Keep it up! ✅</p>
+    {% endif %}
+</div>
+{% endblock %}

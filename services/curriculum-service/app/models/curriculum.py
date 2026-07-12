@@ -1,0 +1,53 @@
+from sqlalchemy import Column, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import DeclarativeBase, relationship
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Program(Base):
+    __tablename__ = "programs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(200), nullable=False)
+    total_semesters = Column(Integer, nullable=False)
+
+    subjects = relationship("Subject", back_populates="program")
+
+
+class Subject(Base):
+    __tablename__ = "subjects"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    program_id = Column(Integer, ForeignKey("programs.id"), nullable=False)
+    code = Column(String(50), unique=True, nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    semester = Column(Integer, nullable=False)
+    type = Column(Enum("theory", "lab", name="subject_type_enum"), nullable=False)
+    credits = Column(Integer, default=3)
+
+    program = relationship("Program", back_populates="subjects")
+    units = relationship("SubjectUnit", back_populates="subject", order_by="SubjectUnit.unit_number")
+
+
+class SubjectUnit(Base):
+    __tablename__ = "subject_units"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+    unit_number = Column(Integer, nullable=False)
+    unit_title = Column(String(300), nullable=False)
+    topics_json = Column(Text, nullable=True)  # JSON array of topic keywords
+
+    subject = relationship("Subject", back_populates="units")
+
+
+class UniversityTemplate(Base):
+    __tablename__ = "university_templates"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    university_name = Column(String(200), nullable=False)
+    program_id = Column(Integer, ForeignKey("programs.id"), nullable=False)
+    semester = Column(Integer, nullable=False)
+    subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)

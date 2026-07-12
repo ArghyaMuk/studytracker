@@ -1,0 +1,182 @@
+services:
+  # Infrastructure
+  mysql:
+    image: mysql:8.0
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: studypilot_users
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Microservices
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - USER_SERVICE_URL=http://user-service:8001
+      - CURRICULUM_SERVICE_URL=http://curriculum-service:8002
+      - SESSION_SERVICE_URL=http://session-service:8003
+      - REPETITION_SERVICE_URL=http://repetition-service:8004
+      - QUIZ_SERVICE_URL=http://quiz-service:8005
+      - READINESS_SERVICE_URL=http://readiness-service:8006
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8007
+      - JWT_SECRET_KEY=studypilot-dev-secret-key-change-in-prod
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_users
+      - REDIS_URL=redis://redis:6379/0
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - JWT_SECRET_KEY=studypilot-dev-secret-key-change-in-prod
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  curriculum-service:
+    build:
+      context: .
+      dockerfile: services/curriculum-service/Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_curriculum
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  session-service:
+    build:
+      context: .
+      dockerfile: services/session-service/Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_sessions
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - CURRICULUM_SERVICE_URL=http://curriculum-service:8002
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  repetition-service:
+    build:
+      context: .
+      dockerfile: services/repetition-service/Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_repetition
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - USER_SERVICE_URL=http://user-service:8001
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  quiz-service:
+    build:
+      context: .
+      dockerfile: services/quiz-service/Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_quizzes
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - CURRICULUM_SERVICE_URL=http://curriculum-service:8002
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  readiness-service:
+    build:
+      context: .
+      dockerfile: services/readiness-service/Dockerfile
+    ports:
+      - "8006:8006"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_readiness
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - REDIS_URL=redis://redis:6379/0
+      - CURRICULUM_SERVICE_URL=http://curriculum-service:8002
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    ports:
+      - "8007:8007"
+    environment:
+      - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_notifications
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - REDIS_URL=redis://redis:6379/0
+      - READINESS_SERVICE_URL=http://readiness-service:8006
+      - REPETITION_SERVICE_URL=http://repetition-service:8004
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  mysql_data:

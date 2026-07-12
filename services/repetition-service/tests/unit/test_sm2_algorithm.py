@@ -1,120 +1,111 @@
-"""Unit tests for the SM-2 spaced repetition algorithm."""
+"""Unit tests for the simple spaced repetition algorithm."""
 
 from datetime import date, timedelta
-
-import pytest
 
 from app.services.sm2_algorithm import SM2Result, compute_sm2
 
 
-class TestSM2Algorithm:
-    """Test SM-2 algorithm implementation against spec requirements."""
+class TestSpacedRepetition:
+    """Test the simple interval-based repetition system."""
 
-    def test_initial_review_quality_5_perfect(self):
-        """First perfect recall: interval should be 1 day."""
+    def test_forgot_resets_to_day_1(self):
+        """Quality 0 or 1 = forgot → review tomorrow."""
         result = compute_sm2(
-            quality=5,
-            ease_factor=2.5,
-            interval_days=1,
-            repetitions=0,
+            quality=0,
+            ease_factor=1.0,
+            interval_days=30,
+            repetitions=4,
             review_date=date(2024, 1, 1),
         )
         assert result.interval_days == 1
-        assert result.repetitions == 1
-        assert result.ease_factor > 2.5  # EF increases on perfect recall
+        assert result.repetitions == 0
         assert result.next_review_date == date(2024, 1, 2)
 
-    def test_second_review_quality_5(self):
-        """Second perfect recall: interval should be 6 days."""
-        result = compute_sm2(
-            quality=5,
-            ease_factor=2.6,
-            interval_days=1,
-            repetitions=1,
-            review_date=date(2024, 1, 2),
-        )
-        assert result.interval_days == 6
-        assert result.repetitions == 2
-        assert result.next_review_date == date(2024, 1, 8)
-
-    def test_third_review_uses_ease_factor(self):
-        """Third+ review: interval = round(interval * EF)."""
-        result = compute_sm2(
-            quality=4,
-            ease_factor=2.5,
-            interval_days=6,
-            repetitions=2,
-            review_date=date(2024, 1, 8),
-        )
-        # interval = round(6 * EF_new)
-        assert result.interval_days == round(6 * result.ease_factor)
-        assert result.repetitions == 3
-
-    def test_failed_recall_resets(self):
-        """Quality < 3 resets repetitions and interval."""
+    def test_barely_remembered_stays_same(self):
+        """Quality 2 = barely remembered → repeat same interval."""
         result = compute_sm2(
             quality=2,
-            ease_factor=2.5,
-            interval_days=15,
-            repetitions=5,
+            ease_factor=1.0,
+            interval_days=7,
+            repetitions=2,  # Level 2 = 7 days
         )
-        assert result.repetitions == 0
+        assert result.interval_days == 7
+        assert result.repetitions == 2
+
+    def test_good_recall_moves_up(self):
+        """Quality 3 or 4 = good → move to next interval level."""
+        result = compute_sm2(
+            quality=4,
+            ease_factor=1.0,
+            interval_days=1,
+            repetitions=0,  # Level 0 → Level 1
+            review_date=date(2024, 1, 1),
+        )
+        assert result.interval_days == 3  # Ladder: 1 → 3
+        assert result.repetitions == 1
+        assert result.next_review_date == date(2024, 1, 4)
+
+    def test_easy_skips_a_level(self):
+        """Quality 5 = too easy → skip ahead."""
+        result = compute_sm2(
+            quality=5,
+            ease_factor=1.0,
+            interval_days=1,
+            repetitions=0,  # Level 0 → Level 2
+        )
+        assert result.interval_days == 7  # Skipped to level 2
+        assert result.repetitions == 2
+
+    def test_interval_ladder_progression(self):
+        """Normal recall moves through: 1 → 3 → 7 → 14 → 30 → 60 → 90."""
+        intervals = []
+        repetitions = 0
+        for _ in range(6):
+            result = compute_sm2(
+                quality=4,
+                ease_factor=1.0,
+                interval_days=1,
+                repetitions=repetitions,
+            )
+            intervals.append(result.interval_days)
+            repetitions = result.repetitions
+
+        assert intervals == [3, 7, 14, 30, 60, 90]
+
+    def test_max_interval_caps_at_90(self):
+        """Repetitions don't exceed the ladder length."""
+        result = compute_sm2(
+            quality=5,
+            ease_factor=1.0,
+            interval_days=90,
+            repetitions=6,  # Already at max
+        )
+        assert result.interval_days == 90
+        assert result.repetitions == 6  # Stays at max
+
+    def test_exam_aware_shortens_interval(self):
+        """Intervals are capped when exam is near."""
+        result = compute_sm2(
+            quality=4,
+            ease_factor=1.0,
+            interval_days=7,
+            repetitions=3,  # Would give 14 days normally
+            review_date=date(2024, 1, 1),
+            exam_date=date(2024, 1, 6),  # 5 days away
+            units_remaining=5,  # 5 units left
+        )
+        # max_interval = 5 days / 5 units = 1 day
         assert result.interval_days == 1
 
-    def test_ease_factor_floor(self):
-        """EF should never go below 1.3."""
+    def test_no_exam_no_capping(self):
+        """Without exam date, intervals grow normally."""
         result = compute_sm2(
-            quality=0,  # Worst recall
-            ease_factor=1.3,
-            interval_days=1,
-            repetitions=0,
-        )
-        assert result.ease_factor == 1.3
-
-    def test_ease_factor_calculation(self):
-        """Verify EF formula: EF' = EF + (0.1 - (5-q)*(0.08 + (5-q)*0.02))."""
-        ef = 2.5
-        q = 4
-        expected_ef = ef + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
-        result = compute_sm2(quality=q, ease_factor=ef, interval_days=6, repetitions=2)
-        assert abs(result.ease_factor - expected_ef) < 0.001
-
-    def test_exam_aware_capping(self):
-        """Interval should be capped based on exam date and units remaining."""
-        # Exam in 10 days, 5 units remaining: max interval = 10/5 = 2 days
-        result = compute_sm2(
-            quality=5,
-            ease_factor=2.5,
-            interval_days=6,
-            repetitions=2,
+            quality=4,
+            ease_factor=1.0,
+            interval_days=7,
+            repetitions=3,
             review_date=date(2024, 1, 1),
-            exam_date=date(2024, 1, 11),
-            units_remaining=5,
+            exam_date=None,
+            units_remaining=None,
         )
-        assert result.interval_days <= 2
-
-    def test_exam_aware_no_capping_when_exam_far(self):
-        """No capping when exam is far away."""
-        result = compute_sm2(
-            quality=5,
-            ease_factor=2.5,
-            interval_days=6,
-            repetitions=2,
-            review_date=date(2024, 1, 1),
-            exam_date=date(2024, 6, 1),  # 5 months away
-            units_remaining=5,
-        )
-        # Normal interval should be used (round(6 * EF))
-        expected = round(6 * result.ease_factor)
-        assert result.interval_days == min(expected, (date(2024, 6, 1) - date(2024, 1, 1)).days // 5)
-
-    def test_quality_3_boundary(self):
-        """Quality 3 is the boundary — still counts as success."""
-        result = compute_sm2(
-            quality=3,
-            ease_factor=2.5,
-            interval_days=1,
-            repetitions=0,
-        )
-        assert result.repetitions == 1  # Incremented (not reset)
-        assert result.interval_days == 1  # First successful repetition
+        assert result.interval_days == 30  # Level 3 → Level 4 = 30 days

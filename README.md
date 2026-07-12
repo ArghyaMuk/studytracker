@@ -237,19 +237,23 @@ StudyPilot/
 └── .env.example               # Template for env vars
 ```
 
-## SM-2 Algorithm (Spaced Repetition)
+## Spaced Repetition System
 
-```python
-EF' = EF + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))  # EF floor = 1.3
-if q < 3: repetitions = 0; interval = 1
-else:
-    if repetitions == 0: interval = 1
-    elif repetitions == 1: interval = 6
-    else: interval = round(interval * EF)
-    repetitions += 1
+Simple interval-based revision scheduling:
 
-# Exam-aware capping:
-interval = min(interval, days_until_exam / units_remaining)
+```
+How well did you recall?
+┌──────────────────────────────────────────┐
+│ Forgot (0-1)  → Review tomorrow          │
+│ Barely (2)    → Same interval again       │
+│ Good (3-4)    → Next level               │
+│ Too Easy (5)  → Skip a level             │
+└──────────────────────────────────────────┘
+
+Interval ladder:  1 → 3 → 7 → 14 → 30 → 60 → 90 days
+
+Near exams: intervals are shortened automatically
+so all units get reviewed before the exam date.
 ```
 
 ## Readiness Score Formula

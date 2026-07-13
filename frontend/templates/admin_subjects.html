@@ -66,7 +66,8 @@
         <form method="POST" action="{{ url_for('delete_subject', subject_id=s.id) }}">
             <input type="hidden" name="program_id" value="{{ program.id }}">
             <input type="hidden" name="semester" value="{{ semester }}">
-            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this subject?')">Delete</button>
+            <input type="hidden" name="subject_code" value="{{ s.code }}">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this subject and all its quizzes?')">Delete</button>
         </form>
     </div>
     {% if s.units %}

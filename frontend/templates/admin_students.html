@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Admin - Students{% endblock %}
+{% block content %}
+<h1>Student Management</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">
+    {{ total_users }} registered students •
+    <a href="{{ url_for('admin_page') }}" style="color:var(--primary);text-decoration:none">← Back to Admin</a>
+</p>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="label">Total Accounts</div>
+        <div class="value">{{ total_users }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">This Week</div>
+        <div class="value">{{ recent_count }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>All Students</h3>
+    <table style="margin-top:12px">
+        <thead>
+            <tr><th>#</th><th>Name</th><th>Email</th><th>College</th><th>Semester</th><th>Joined</th></tr>
+        </thead>
+        <tbody>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.name }}</td>
+                <td>{{ u.email }}</td>
+                <td>{{ u.college or '—' }}</td>
+                <td>{{ u.current_semester or '—' }}</td>
+                <td>{{ u.created_at[:10] if u.created_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

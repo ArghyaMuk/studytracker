@@ -9,8 +9,8 @@
     <div class="card">
         <p style="font-weight:600;margin-bottom:12px">{{ loop.index }}. {{ q.question }}</p>
         {% if quiz.mode == 'mcq' and q.options_json %}
-            {% set options = q.options_json | tojson | replace('\\"', '"') %}
-            {% for opt in (q.options_json | from_json if q.options_json is string else []) %}
+            {% set options = q.options_json | from_json %}
+            {% for opt in options %}
             <label class="quiz-option">
                 <input type="radio" name="q_{{ q.id }}" value="{{ 'ABCD'[loop.index0] }}" required>
                 <strong>{{ 'ABCD'[loop.index0] }}.</strong> {{ opt }}

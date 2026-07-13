@@ -2,7 +2,49 @@
 {% block title %}Quizzes{% endblock %}
 {% block content %}
 <h1>Quizzes</h1>
-<p style="color:var(--text-muted);margin-bottom:24px">Generate AI-powered quizzes from your syllabus</p>
+<p style="color:var(--text-muted);margin-bottom:24px">Take quizzes set by your admin to test your knowledge</p>
+
+{% if quizzes %}
+<div class="stats-grid" style="margin-bottom:24px">
+    <div class="stat-card">
+        <div class="label">Available Quizzes</div>
+        <div class="value">{{ quizzes|length }}</div>
+    </div>
+</div>
+
+{% for quiz in quizzes %}
+<div class="card" style="display:flex;justify-content:space-between;align-items:center">
+    <div>
+        <div style="display:flex;align-items:center;gap:8px">
+            <span class="badge badge-blue">{{ quiz.subject_code }}</span>
+            <strong>Unit {{ quiz.unit_number }}</strong>
+            <span class="badge {{ 'badge-purple' if quiz.mode == 'mcq' else 'badge-green' }}">{{ quiz.mode|upper }}</span>
+        </div>
+        <div style="color:var(--text-muted);font-size:0.8rem;margin-top:4px">
+            {{ quiz.question_count }} questions • {{ quiz.source_type }} • Added {{ quiz.created_at[:10] if quiz.created_at else '' }}
+        </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+        {% if session.get('email') == 'admin@studypilot.com' %}
+        <form method="POST" action="{{ url_for('delete_quiz_action', quiz_id=quiz.id) }}" style="display:inline">
+            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this quiz?')">Delete</button>
+        </form>
+        {% endif %}
+        <a href="{{ url_for('take_quiz', quiz_id=quiz.id) }}" class="btn btn-primary btn-sm">Take Quiz →</a>
+    </div>
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card" style="text-align:center;padding:48px">
+    <p style="font-size:2rem;margin-bottom:8px">📝</p>
+    <p style="color:var(--text-muted)">No quizzes available yet. Your admin will add quizzes for you to practice.</p>
+</div>
+{% endif %}
+
+{% if session.get('email') == 'admin@studypilot.com' %}
+<hr style="margin:32px 0;border-color:var(--border)">
+<h2 style="margin-bottom:16px">Admin: Create Quiz</h2>
 
 <div class="card">
     <h3>🤖 Generate Quiz with AI</h3>
@@ -41,4 +83,93 @@
         <button type="submit" class="btn btn-purple">✨ Generate Quiz</button>
     </form>
 </div>
+
+<div class="card" style="margin-top:16px">
+    <h3>✍️ Add Questions Manually</h3>
+    <form method="POST" action="{{ url_for('admin_quizzes') }}" style="margin-top:12px">
+        <input type="hidden" name="action" value="manual">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Subject Code</label>
+                <input type="text" name="subject_code" required placeholder="e.g. CS301">
+            </div>
+            <div class="form-group">
+                <label>Unit Number</label>
+                <input type="number" name="unit_number" value="1" min="1" required>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Mode</label>
+            <select name="mode" id="manual-mode" onchange="toggleMode()">
+                <option value="mcq">MCQ</option>
+                <option value="viva">Viva Q&A</option>
+            </select>
+        </div>
+        <div id="questions-container">
+            <div class="card" style="background:#f8fafc;border:1px dashed var(--border);margin-bottom:12px">
+                <strong>Question 1</strong>
+                <div class="form-group" style="margin-top:8px">
+                    <textarea name="question_1" placeholder="Enter your question..." required style="width:100%"></textarea>
+                </div>
+                <div class="mcq-options">
+                    <div class="form-row">
+                        <div class="form-group"><label>A</label><input type="text" name="option_1_A" placeholder="Option A" required></div>
+                        <div class="form-group"><label>B</label><input type="text" name="option_1_B" placeholder="Option B" required></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>C</label><input type="text" name="option_1_C" placeholder="Option C" required></div>
+                        <div class="form-group"><label>D</label><input type="text" name="option_1_D" placeholder="Option D" required></div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>Correct Answer</label><select name="answer_1"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
+                    <div class="form-group"><label>Difficulty</label><select name="difficulty_1"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></div>
+                </div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px">
+            <button type="button" onclick="addQuestion()" class="btn btn-secondary">+ Add Question</button>
+            <button type="submit" class="btn btn-primary">💾 Save Quiz</button>
+        </div>
+    </form>
+</div>
+
+<script>
+let qCount = 1;
+function addQuestion() {
+    qCount++;
+    const container = document.getElementById('questions-container');
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.cssText = 'background:#f8fafc;border:1px dashed var(--border);margin-bottom:12px';
+    div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong>Question ${qCount}</strong>
+            <button type="button" onclick="this.closest('.card').remove()" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:1.2rem">×</button>
+        </div>
+        <div class="form-group" style="margin-top:8px">
+            <textarea name="question_${qCount}" placeholder="Enter your question..." required style="width:100%"></textarea>
+        </div>
+        <div class="mcq-options">
+            <div class="form-row">
+                <div class="form-group"><label>A</label><input type="text" name="option_${qCount}_A" placeholder="Option A" required></div>
+                <div class="form-group"><label>B</label><input type="text" name="option_${qCount}_B" placeholder="Option B" required></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>C</label><input type="text" name="option_${qCount}_C" placeholder="Option C" required></div>
+                <div class="form-group"><label>D</label><input type="text" name="option_${qCount}_D" placeholder="Option D" required></div>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group"><label>Correct Answer</label><select name="answer_${qCount}"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select></div>
+            <div class="form-group"><label>Difficulty</label><select name="difficulty_${qCount}"><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option></select></div>
+        </div>`;
+    container.appendChild(div);
+}
+function toggleMode() {
+    const mode = document.getElementById('manual-mode').value;
+    document.querySelectorAll('.mcq-options').forEach(el => { el.style.display = mode === 'mcq' ? 'block' : 'none'; });
+}
+</script>
+{% endif %}
 {% endblock %}

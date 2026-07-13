@@ -15,13 +15,17 @@
             </div>
             <nav class="sidebar-nav">
                 <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.path == '/dashboard' }}">📊 Dashboard</a>
-                <a href="{{ url_for('sessions_page') }}" class="{{ 'active' if '/sessions' in request.path }}">📖 Study Sessions</a>
-                <a href="{{ url_for('quizzes_page') }}" class="{{ 'active' if '/quizzes' in request.path }}">🧠 Quizzes</a>
-                <a href="{{ url_for('revision_page') }}" class="{{ 'active' if '/revision' in request.path }}">📅 Revision</a>
-                <a href="{{ url_for('readiness_page') }}" class="{{ 'active' if '/readiness' in request.path }}">📈 Readiness</a>
-                <a href="{{ url_for('settings_page') }}" class="{{ 'active' if '/settings' in request.path }}">⚙️ Settings</a>
+                {% if session.get('email') != 'admin@studypilot.com' %}
+                <a href="{{ url_for('sessions_page') }}" class="{{ 'active' if request.path == '/sessions' }}">📖 Study Sessions</a>
+                {% endif %}
+                <a href="{{ url_for('quizzes_page') }}" class="{{ 'active' if request.path == '/quizzes' }}">🧠 Quizzes</a>
+                {% if session.get('email') != 'admin@studypilot.com' %}
+                <a href="{{ url_for('revision_page') }}" class="{{ 'active' if request.path == '/revision' }}">📅 Revision</a>
+                <a href="{{ url_for('readiness_page') }}" class="{{ 'active' if request.path == '/readiness' }}">📈 Readiness</a>
+                {% endif %}
+                <a href="{{ url_for('settings_page') }}" class="{{ 'active' if request.path == '/settings' }}">⚙️ Settings</a>
                 {% if session.get('email') == 'admin@studypilot.com' %}
-                <a href="{{ url_for('admin_page') }}" class="{{ 'active' if '/admin' in request.path }}">🛡️ Admin</a>
+                <a href="{{ url_for('admin_page') }}" class="{{ 'active' if request.path.startswith('/admin') }}">🛡️ Admin</a>
                 {% endif %}
             </nav>
             <div class="sidebar-footer">

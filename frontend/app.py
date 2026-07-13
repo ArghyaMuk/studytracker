@@ -1,4 +1,6 @@
 import os
+import json
+import base64
 import requests
 from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
@@ -16,6 +18,20 @@ app.jinja_env.filters['from_json'] = lambda s: json_module.loads(s) if s else []
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
 
 
+def decode_jwt_payload(token: str) -> dict:
+    """Safely decode JWT payload (no verification, just parse)."""
+    try:
+        payload_b64 = token.split(".")[1]
+        # Fix base64url padding
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += "=" * padding
+        decoded = base64.urlsafe_b64decode(payload_b64)
+        return json.loads(decoded)
+    except Exception:
+        return {}
+
+
 # ── Helpers ──
 
 def api_headers():
@@ -30,7 +46,10 @@ def api_headers():
 def api_get(endpoint):
     """Make authenticated GET request to backend."""
     try:
-        r = requests.get(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=10)
+        r = requests.get(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=30)
+        if r.status_code == 401:
+            if _refresh_token():
+                r = requests.get(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=30)
         return r.json() if r.status_code == 200 else None
     except Exception:
         return None
@@ -39,7 +58,10 @@ def api_get(endpoint):
 def api_post(endpoint, data):
     """Make authenticated POST request to backend."""
     try:
-        r = requests.post(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=10)
+        r = requests.post(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=60)
+        if r.status_code == 401 and "auth" not in endpoint:
+            if _refresh_token():
+                r = requests.post(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=60)
         return r.status_code, r.json()
     except Exception as e:
         return 500, {"detail": str(e)}
@@ -48,7 +70,10 @@ def api_post(endpoint, data):
 def api_put(endpoint, data):
     """Make authenticated PUT request to backend."""
     try:
-        r = requests.put(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=10)
+        r = requests.put(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=30)
+        if r.status_code == 401:
+            if _refresh_token():
+                r = requests.put(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=30)
         return r.status_code, r.json()
     except Exception as e:
         return 500, {"detail": str(e)}
@@ -57,10 +82,30 @@ def api_put(endpoint, data):
 def api_delete(endpoint):
     """Make authenticated DELETE request to backend."""
     try:
-        r = requests.delete(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=10)
+        r = requests.delete(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=30)
+        if r.status_code == 401:
+            if _refresh_token():
+                r = requests.delete(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=30)
         return r.status_code
     except Exception:
         return 500
+
+
+def _refresh_token():
+    """Attempt to refresh the access token using the refresh token."""
+    refresh_token = session.get("refresh_token")
+    if not refresh_token:
+        return False
+    try:
+        r = requests.post(f"{API_BASE}/auth/refresh", json={"refresh_token": refresh_token}, timeout=10)
+        if r.status_code == 200:
+            data = r.json()
+            session["access_token"] = data["access_token"]
+            session["refresh_token"] = data["refresh_token"]
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def login_required(f):
@@ -103,8 +148,7 @@ def login():
             session["access_token"] = data["access_token"]
             session["refresh_token"] = data["refresh_token"]
             # Decode user ID from token
-            import base64, json
-            payload = json.loads(base64.b64decode(data["access_token"].split(".")[1] + "=="))
+            payload = decode_jwt_payload(data["access_token"])
             session["user_id"] = int(payload["sub"])
             session["email"] = payload["email"]
             # Fetch profile
@@ -133,8 +177,7 @@ def register():
         if status == 201:
             session["access_token"] = resp["access_token"]
             session["refresh_token"] = resp["refresh_token"]
-            import base64, json
-            payload = json.loads(base64.b64decode(resp["access_token"].split(".")[1] + "=="))
+            payload = decode_jwt_payload(resp["access_token"])
             session["user_id"] = int(payload["sub"])
             session["email"] = payload["email"]
             session["user_name"] = data["name"]
@@ -211,11 +254,35 @@ def delete_session(session_id):
 @app.route("/quizzes")
 @login_required
 def quizzes_page():
-    return render_template("quizzes.html")
+    quizzes = api_get("/quizzes/available") or []
+    return render_template("quizzes.html", quizzes=quizzes)
+
+
+@app.route("/quizzes/<int:quiz_id>/take")
+@login_required
+def take_quiz(quiz_id):
+    quiz = api_get(f"/quizzes/{quiz_id}")
+    if not quiz:
+        flash("Quiz not found", "error")
+        return redirect(url_for("quizzes_page"))
+    return render_template("quiz_take.html", quiz=quiz)
+
+
+@app.route("/quizzes/<int:quiz_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_quiz_action(quiz_id):
+    status = api_delete(f"/admin/quizzes/{quiz_id}")
+    if status == 204:
+        flash("Quiz deleted", "success")
+    else:
+        flash("Failed to delete quiz", "error")
+    return redirect(url_for("quizzes_page"))
 
 
 @app.route("/quizzes/generate", methods=["POST"])
 @login_required
+@admin_required
 def generate_quiz():
     user_id = session["user_id"]
     data = {
@@ -316,7 +383,43 @@ def settings_page():
 @admin_required
 def admin_page():
     programs = api_get("/programs") or []
-    return render_template("admin.html", programs=programs)
+    # Fetch student stats
+    user_data = api_get("/users/admin/all") or {"total_users": 0, "users": []}
+    # Count recent signups (last 7 days)
+    from datetime import datetime, timedelta
+    recent_cutoff = (datetime.now() - timedelta(days=7)).isoformat()
+    recent_signups = sum(
+        1 for u in user_data.get("users", [])
+        if u.get("created_at") and u["created_at"] >= recent_cutoff
+    )
+    # Get quiz count
+    available_quizzes = api_get("/quizzes/available") or []
+    quiz_count = len(available_quizzes)
+
+    student_stats = {
+        "total_users": user_data.get("total_users", 0),
+        "users": user_data.get("users", []),
+        "recent_signups": recent_signups,
+        "total_quizzes": quiz_count,
+    }
+    return render_template("admin.html", programs=programs, student_stats=student_stats)
+
+
+@app.route("/admin/students")
+@login_required
+@admin_required
+def admin_students():
+    user_data = api_get("/users/admin/all") or {"total_users": 0, "users": []}
+    from datetime import datetime, timedelta
+    recent_cutoff = (datetime.now() - timedelta(days=7)).isoformat()
+    recent_count = sum(
+        1 for u in user_data.get("users", [])
+        if u.get("created_at") and u["created_at"] >= recent_cutoff
+    )
+    return render_template("admin_students.html",
+                           users=user_data.get("users", []),
+                           total_users=user_data.get("total_users", 0),
+                           recent_count=recent_count)
 
 
 @app.route("/admin/programs/add", methods=["POST"])
@@ -339,9 +442,19 @@ def add_program():
 @login_required
 @admin_required
 def delete_program(program_id):
+    # First, get all subjects for this program to delete their quizzes
+    programs = api_get("/programs") or []
+    program = next((p for p in programs if p["id"] == program_id), None)
+    if program:
+        for sem in range(1, program.get("total_semesters", 8) + 1):
+            subjects = api_get(f"/programs/{program_id}/semesters/{sem}/subjects") or []
+            for subj in subjects:
+                # Delete all quizzes for this subject code
+                api_delete(f"/admin/quizzes/by-subject/{subj['code']}")
+
     status = api_delete(f"/admin/programs/{program_id}")
     if status == 204:
-        flash("Program deleted", "success")
+        flash("Program and all related quizzes deleted", "success")
     else:
         flash("Failed to delete", "error")
     return redirect(url_for("admin_page"))
@@ -396,9 +509,15 @@ def add_subject(program_id):
 def delete_subject(subject_id):
     program_id = request.form.get("program_id", 1)
     semester = request.form.get("semester", 1)
+    subject_code = request.form.get("subject_code", "")
+
+    # Delete all quizzes for this subject code
+    if subject_code:
+        api_delete(f"/admin/quizzes/by-subject/{subject_code}")
+
     status = api_delete(f"/admin/subjects/{subject_id}")
     if status == 204:
-        flash("Subject deleted", "success")
+        flash("Subject and related quizzes deleted", "success")
     else:
         flash("Failed to delete", "error")
     return redirect(url_for("admin_subjects", program_id=program_id, semester=semester))

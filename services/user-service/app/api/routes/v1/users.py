@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
+from app.models import User, UserProfile
 from app.repositories import UserRepository
 from app.schemas import (
     ExamTargetRequest,
@@ -16,6 +18,35 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:
     return UserService(UserRepository(db))
+
+
+@router.get("/admin/all")
+async def list_all_users(db: AsyncSession = Depends(get_db)):
+    """Admin endpoint: list all registered users with stats."""
+    result = await db.execute(
+        select(User.id, User.name, User.email, User.college, User.current_semester, User.created_at)
+        .order_by(User.created_at.desc())
+    )
+    users = [
+        {
+            "id": row.id,
+            "name": row.name,
+            "email": row.email,
+            "college": row.college,
+            "current_semester": row.current_semester,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in result.all()
+    ]
+
+    # Stats
+    count_result = await db.execute(select(func.count(User.id)))
+    total_users = count_result.scalar()
+
+    return {
+        "total_users": total_users,
+        "users": users,
+    }
 
 
 @router.get("/{user_id}", response_model=UserResponse)

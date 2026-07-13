@@ -1,11 +1,12 @@
 import json
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.models import Quiz, QuizQuestion
+from app.models import Quiz, QuizQuestion, QuizAttempt
 from app.repositories import QuizRepository
 
 router = APIRouter(prefix="/admin/quizzes", tags=["admin-quizzes"])
@@ -69,3 +70,32 @@ async def create_custom_quiz(data: CustomQuizRequest, db: AsyncSession = Depends
         mode=data.mode,
         question_count=len(questions),
     )
+
+
+@router.delete("/{quiz_id}", status_code=204)
+async def delete_quiz(quiz_id: int, db: AsyncSession = Depends(get_db)):
+    """Admin endpoint to delete a quiz and all its questions/attempts."""
+    # Check quiz exists
+    result = await db.execute(select(Quiz).where(Quiz.id == quiz_id))
+    quiz = result.scalar_one_or_none()
+    if not quiz:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Quiz not found")
+
+    # Delete attempts, questions, then quiz
+    await db.execute(delete(QuizAttempt).where(QuizAttempt.quiz_id == quiz_id))
+    await db.execute(delete(QuizQuestion).where(QuizQuestion.quiz_id == quiz_id))
+    await db.execute(delete(Quiz).where(Quiz.id == quiz_id))
+    await db.commit()
+
+
+@router.delete("/by-subject/{subject_code}", status_code=204)
+async def delete_quizzes_by_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
+    """Admin endpoint to delete all quizzes for a subject code."""
+    result = await db.execute(select(Quiz.id).where(Quiz.subject_code == subject_code))
+    quiz_ids = [row[0] for row in result.all()]
+
+    if quiz_ids:
+        await db.execute(delete(QuizAttempt).where(QuizAttempt.quiz_id.in_(quiz_ids)))
+        await db.execute(delete(QuizQuestion).where(QuizQuestion.quiz_id.in_(quiz_ids)))
+        await db.execute(delete(Quiz).where(Quiz.id.in_(quiz_ids)))
+        await db.commit()

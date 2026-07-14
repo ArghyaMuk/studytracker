@@ -10,7 +10,8 @@ from .config import settings
 
 def create_tokens(user_id: int, email: str) -> dict[str, str]:
     """Create access and refresh token pair for a user."""
-    data = {"sub": str(user_id), "email": email}
+    role = "admin" if email == "admin@studypilot.com" else "student"
+    data = {"sub": str(user_id), "email": email, "role": role}
     access_token = create_access_token(
         data,
         secret_key=settings.jwt_secret_key,

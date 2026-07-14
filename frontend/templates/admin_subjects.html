@@ -7,11 +7,15 @@
 </p>
 
 <!-- Semester tabs -->
+{% if program %}
 <div class="tabs">
-    {% for s in range(1, (program.total_semesters if program else 8) + 1) %}
+    {% for s in range(1, program.total_semesters + 1) %}
     <a href="{{ url_for('admin_subjects', program_id=program.id, semester=s) }}" class="tab {{ 'active' if s == semester }}">Sem {{ s }}</a>
     {% endfor %}
 </div>
+{% else %}
+<div class="card"><p style="color:var(--danger)">Program not found. It may have been deleted. <a href="{{ url_for('admin_page') }}">← Back to Admin</a></p></div>
+{% endif %}
 
 <!-- Add subject form -->
 <div class="card">

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -85,9 +85,14 @@ async def get_quiz_history(
 @router.post("/generate", response_model=QuizResponse, status_code=201)
 async def generate_quiz(
     data: QuizGenerateRequest,
-    user_id: int = Query(...),
+    x_user_id: str = Header(None, alias="X-User-Id"),
+    x_user_role: str = Header("student", alias="X-User-Role"),
     service: QuizService = Depends(get_quiz_service),
 ):
+    # Only admin can generate quizzes
+    if x_user_role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required to generate quizzes")
+    user_id = int(x_user_id) if x_user_id else 0
     return await service.generate_quiz(user_id, data)
 
 
@@ -101,9 +106,12 @@ async def submit_quiz(
     request: Request,
     quiz_id: int,
     data: QuizSubmitRequest,
-    user_id: int = Query(...),
+    x_user_id: str = Header(None, alias="X-User-Id"),
     service: QuizService = Depends(get_quiz_service),
 ):
+    if not x_user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user_id = int(x_user_id)
     result = await service.submit_quiz(quiz_id, user_id, data)
 
     # Publish quiz.completed event

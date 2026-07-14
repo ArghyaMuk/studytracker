@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -19,6 +19,12 @@ def get_curriculum_service(db: AsyncSession = Depends(get_db)) -> CurriculumServ
     return CurriculumService(CurriculumRepository(db))
 
 
+async def require_admin(x_user_role: str = Header("student", alias="X-User-Role")) -> str:
+    if x_user_role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return x_user_role
+
+
 @router.get("/programs", response_model=list[ProgramResponse])
 async def list_programs(service: CurriculumService = Depends(get_curriculum_service)):
     return await service.get_all_programs()
@@ -26,14 +32,18 @@ async def list_programs(service: CurriculumService = Depends(get_curriculum_serv
 
 @router.post("/admin/programs", response_model=ProgramResponse, status_code=201)
 async def create_program(
-    data: ProgramCreate, service: CurriculumService = Depends(get_curriculum_service)
+    data: ProgramCreate,
+    _: str = Depends(require_admin),
+    service: CurriculumService = Depends(get_curriculum_service),
 ):
     return await service.create_program(data)
 
 
 @router.delete("/admin/programs/{program_id}", status_code=204)
 async def delete_program(
-    program_id: int, service: CurriculumService = Depends(get_curriculum_service)
+    program_id: int,
+    _: str = Depends(require_admin),
+    service: CurriculumService = Depends(get_curriculum_service),
 ):
     await service.delete_program(program_id)
 
@@ -58,6 +68,7 @@ async def get_subject_units(
 async def create_subject(
     program_id: int,
     data: SubjectCreate,
+    _: str = Depends(require_admin),
     service: CurriculumService = Depends(get_curriculum_service),
 ):
     return await service.create_subject(program_id, data)
@@ -65,7 +76,9 @@ async def create_subject(
 
 @router.delete("/admin/subjects/{subject_id}", status_code=204)
 async def delete_subject(
-    subject_id: int, service: CurriculumService = Depends(get_curriculum_service)
+    subject_id: int,
+    _: str = Depends(require_admin),
+    service: CurriculumService = Depends(get_curriculum_service),
 ):
     await service.delete_subject(subject_id)
 
@@ -104,11 +117,16 @@ async def list_materials(
 @router.post("/admin/materials", status_code=201)
 async def add_material(
     data: dict,
+    _: str = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     """Admin: add a study material (video, PDF link, notes)."""
     from app.models import StudyMaterial
     from datetime import datetime
+
+    # Validate required fields
+    if not data.get("subject_code") or not data.get("title") or not data.get("url") or not data.get("material_type"):
+        raise HTTPException(status_code=422, detail="subject_code, title, url, and material_type are required")
 
     material = StudyMaterial(
         subject_code=data["subject_code"],
@@ -126,7 +144,11 @@ async def add_material(
 
 
 @router.delete("/admin/materials/{material_id}", status_code=204)
-async def delete_material(material_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_material(
+    material_id: int,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
     """Admin: delete a study material."""
     from app.models import StudyMaterial
     from sqlalchemy import select, delete as sql_delete

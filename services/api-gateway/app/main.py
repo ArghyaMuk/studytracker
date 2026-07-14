@@ -78,6 +78,7 @@ async def proxy(request: Request, path: str):
     if user_payload:
         headers["X-User-Id"] = str(user_payload.get("sub", ""))
         headers["X-User-Email"] = user_payload.get("email", "")
+        headers["X-User-Role"] = user_payload.get("role", "student")
 
     body = await request.body()
 

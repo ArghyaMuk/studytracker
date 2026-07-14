@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +10,12 @@ from app.models import Quiz, QuizQuestion, QuizAttempt
 from app.repositories import QuizRepository
 
 router = APIRouter(prefix="/admin/quizzes", tags=["admin-quizzes"])
+
+
+async def require_admin(x_user_role: str = Header("student", alias="X-User-Role")) -> str:
+    if x_user_role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return x_user_role
 
 
 class CustomQuestionInput(BaseModel):
@@ -35,7 +41,11 @@ class CustomQuizResponse(BaseModel):
 
 
 @router.post("/custom", response_model=CustomQuizResponse, status_code=201)
-async def create_custom_quiz(data: CustomQuizRequest, db: AsyncSession = Depends(get_db)):
+async def create_custom_quiz(
+    data: CustomQuizRequest,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
     """Admin endpoint to create a quiz with manually written questions."""
     repo = QuizRepository(db)
 
@@ -73,7 +83,11 @@ async def create_custom_quiz(data: CustomQuizRequest, db: AsyncSession = Depends
 
 
 @router.delete("/{quiz_id}", status_code=204)
-async def delete_quiz(quiz_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_quiz(
+    quiz_id: int,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
     """Admin endpoint to delete a quiz and all its questions/attempts."""
     # Check quiz exists
     result = await db.execute(select(Quiz).where(Quiz.id == quiz_id))
@@ -89,7 +103,11 @@ async def delete_quiz(quiz_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.delete("/by-subject/{subject_code}", status_code=204)
-async def delete_quizzes_by_subject(subject_code: str, db: AsyncSession = Depends(get_db)):
+async def delete_quizzes_by_subject(
+    subject_code: str,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
     """Admin endpoint to delete all quizzes for a subject code."""
     result = await db.execute(select(Quiz.id).where(Quiz.subject_code == subject_code))
     quiz_ids = [row[0] for row in result.all()]

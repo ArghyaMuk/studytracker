@@ -145,13 +145,19 @@ class LLMClient(QuizGeneratorInterface):
     # ── Provider implementations ──
 
     async def _call_gemini(self, prompt: str) -> list[dict] | None:
-        """Call Google Gemini API."""
+        """Call Google Gemini API (run in executor to avoid blocking event loop)."""
+        import asyncio
         import google.generativeai as genai
 
-        genai.configure(api_key=self.gemini_api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-        response = model.generate_content(prompt)
-        return self._parse_json_response(response.text)
+        def _sync_call():
+            genai.configure(api_key=self.gemini_api_key)
+            model = genai.GenerativeModel("gemini-2.0-flash")
+            response = model.generate_content(prompt)
+            return response.text
+
+        loop = asyncio.get_event_loop()
+        text = await loop.run_in_executor(None, _sync_call)
+        return self._parse_json_response(text)
 
     async def _call_openrouter(self, prompt: str) -> list[dict] | None:
         """Call OpenRouter API (supports many models via single endpoint)."""

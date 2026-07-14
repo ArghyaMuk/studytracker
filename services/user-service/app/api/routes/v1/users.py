@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,8 +21,13 @@ def get_user_service(db: AsyncSession = Depends(get_db)) -> UserService:
 
 
 @router.get("/admin/all")
-async def list_all_users(db: AsyncSession = Depends(get_db)):
+async def list_all_users(
+    x_user_role: str = Header("student", alias="X-User-Role"),
+    db: AsyncSession = Depends(get_db),
+):
     """Admin endpoint: list all registered users with stats."""
+    if x_user_role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     result = await db.execute(
         select(User.id, User.name, User.email, User.college, User.current_semester, User.created_at)
         .order_by(User.created_at.desc())

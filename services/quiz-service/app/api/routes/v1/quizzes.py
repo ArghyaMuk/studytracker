@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,6 +53,35 @@ async def list_available_quizzes(
     ]
 
 
+@router.get("/history")
+async def get_quiz_history(
+    user_id: int = Query(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a user's quiz attempt history with scores."""
+    from app.models import QuizAttempt
+    from sqlalchemy.orm import selectinload
+
+    result = await db.execute(
+        select(QuizAttempt)
+        .options(selectinload(QuizAttempt.quiz))
+        .where(QuizAttempt.user_id == user_id)
+        .order_by(QuizAttempt.submitted_at.desc())
+    )
+    attempts = result.scalars().all()
+    return [
+        {
+            "id": a.id,
+            "quiz_id": a.quiz_id,
+            "subject_code": a.quiz.subject_code if a.quiz else "—",
+            "unit_number": a.quiz.unit_number if a.quiz else 0,
+            "score": round(a.score, 1),
+            "submitted_at": a.submitted_at.isoformat() if a.submitted_at else None,
+        }
+        for a in attempts
+    ]
+
+
 @router.post("/generate", response_model=QuizResponse, status_code=201)
 async def generate_quiz(
     data: QuizGenerateRequest,
@@ -69,9 +98,28 @@ async def get_quiz(quiz_id: int, service: QuizService = Depends(get_quiz_service
 
 @router.post("/{quiz_id}/submit", response_model=QuizSubmitResponse)
 async def submit_quiz(
+    request: Request,
     quiz_id: int,
     data: QuizSubmitRequest,
     user_id: int = Query(...),
     service: QuizService = Depends(get_quiz_service),
 ):
-    return await service.submit_quiz(quiz_id, user_id, data)
+    result = await service.submit_quiz(quiz_id, user_id, data)
+
+    # Publish quiz.completed event
+    publisher = getattr(request.app.state, "event_publisher", None)
+    if publisher and result.get("score") is not None:
+        try:
+            quiz = await service.get_quiz(quiz_id)
+            await publisher.publish_quiz_completed(
+                user_id=user_id,
+                subject_code=quiz.subject_code,
+                unit_number=quiz.unit_number or 1,
+                score_percentage=result["score"],
+                question_count=result["total_questions"],
+                quiz_type=quiz.source_type or "unit",
+            )
+        except Exception:
+            pass  # Best-effort event publishing
+
+    return result

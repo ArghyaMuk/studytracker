@@ -1,69 +1,118 @@
 {% extends "base.html" %}
-{% block title %}Study Sessions{% endblock %}
+{% block title %}Study Materials{% endblock %}
 {% block content %}
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-    <div>
-        <h1>Study Sessions</h1>
-        <p style="color:var(--text-muted)">Log and track your study activity</p>
+<h1>Study Materials</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">Videos, notes, and resources shared by your admin</p>
+
+{% if materials %}
+<div class="stats-grid" style="margin-bottom:24px">
+    <div class="stat-card">
+        <div class="label">Total Resources</div>
+        <div class="value">{{ materials|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Videos</div>
+        <div class="value">{{ materials|selectattr('material_type', 'equalto', 'video')|list|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">PDFs/Notes</div>
+        <div class="value">{{ materials|selectattr('material_type', 'in', ['pdf', 'notes'])|list|length }}</div>
     </div>
 </div>
 
+{% for mat in materials %}
 <div class="card">
-    <h3>Log New Session</h3>
-    <form method="POST" action="{{ url_for('add_session') }}" style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                {% if mat.material_type == 'video' %}
+                <span style="font-size:1.2rem">🎥</span>
+                {% elif mat.material_type == 'pdf' %}
+                <span style="font-size:1.2rem">📄</span>
+                {% elif mat.material_type == 'notes' %}
+                <span style="font-size:1.2rem">📝</span>
+                {% else %}
+                <span style="font-size:1.2rem">🔗</span>
+                {% endif %}
+                <strong>{{ mat.title }}</strong>
+                <span class="badge badge-blue">{{ mat.subject_code }}</span>
+                {% if mat.unit_number %}
+                <span class="badge badge-purple">Unit {{ mat.unit_number }}</span>
+                {% endif %}
+            </div>
+            {% if mat.description %}
+            <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:8px">{{ mat.description }}</p>
+            {% endif %}
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+            {% if session.get('email') == 'admin@studypilot.com' %}
+            <form method="POST" action="{{ url_for('delete_material', material_id=mat.id) }}">
+                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this material?')">Delete</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% if mat.material_type == 'video' and 'youtube' in mat.url %}
+    {% set video_id = mat.url.split('v=')[1].split('&')[0] if 'v=' in mat.url else mat.url.split('/')[-1] %}
+    <div style="margin-top:12px;position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:8px">
+        <iframe src="https://www.youtube.com/embed/{{ video_id }}" style="position:absolute;top:0;left:0;width:100%;height:100%;border:none" allowfullscreen></iframe>
+    </div>
+    {% else %}
+    <a href="{{ mat.url }}" target="_blank" class="btn btn-primary btn-sm" style="margin-top:8px">
+        {% if mat.material_type == 'video' %}▶️ Watch Video{% elif mat.material_type == 'pdf' %}📄 Open PDF{% else %}🔗 Open Link{% endif %}
+    </a>
+    {% endif %}
+</div>
+{% endfor %}
+
+{% else %}
+<div class="card" style="text-align:center;padding:48px">
+    <p style="font-size:2rem;margin-bottom:8px">📚</p>
+    <p style="color:var(--text-muted)">No study materials available yet. Your admin will add videos, notes, and resources here.</p>
+</div>
+{% endif %}
+
+<!-- Admin: Add Material -->
+{% if session.get('email') == 'admin@studypilot.com' %}
+<hr style="margin:32px 0;border-color:var(--border)">
+<div class="card">
+    <h3>➕ Add Study Material (Admin)</h3>
+    <form method="POST" action="{{ url_for('add_material') }}" style="margin-top:12px">
         <div class="form-row">
             <div class="form-group">
                 <label>Subject Code</label>
-                <input type="text" name="subject_code" required placeholder="e.g. CS301">
+                <input type="text" name="subject_code" required placeholder="e.g. MCA201">
             </div>
             <div class="form-group">
-                <label>Unit Number</label>
-                <input type="number" name="unit_number" value="1" min="1" required>
-            </div>
-        </div>
-        <div class="form-row">
-            <div class="form-group">
-                <label>Duration (minutes)</label>
-                <input type="number" name="duration_min" value="30" min="1" max="480" required>
-            </div>
-            <div class="form-group">
-                <label>Focus Rating (1-5)</label>
-                <select name="focus_rating">
-                    <option value="1">1 - Very Low</option>
-                    <option value="2">2 - Low</option>
-                    <option value="3" selected>3 - Medium</option>
-                    <option value="4">4 - High</option>
-                    <option value="5">5 - Very High</option>
-                </select>
+                <label>Unit Number (optional)</label>
+                <input type="number" name="unit_number" min="1" placeholder="e.g. 1">
             </div>
         </div>
         <div class="form-group">
-            <label>Notes (optional)</label>
-            <textarea name="notes" maxlength="1000" placeholder="What did you study?"></textarea>
+            <label>Title</label>
+            <input type="text" name="title" required placeholder="e.g. Python Basics - Full Course">
         </div>
-        <button type="submit" class="btn btn-primary">Log Session</button>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Type</label>
+                <select name="material_type" required>
+                    <option value="video">🎥 YouTube Video</option>
+                    <option value="pdf">📄 PDF / Document Link</option>
+                    <option value="notes">📝 Notes</option>
+                    <option value="link">🔗 External Link</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>URL</label>
+                <input type="url" name="url" required placeholder="https://youtube.com/watch?v=... or PDF link">
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Description (optional)</label>
+            <textarea name="description" placeholder="Brief description of the material..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Add Material</button>
     </form>
 </div>
-
-<div class="card">
-    <h3>Session History</h3>
-    {% if sessions %}
-    <ul class="item-list" style="margin-top:12px">
-        {% for s in sessions %}
-        <li>
-            <div class="item-info">
-                <div class="title">{{ s.subject_code }} — Unit {{ s.unit_number }}</div>
-                <div class="meta">⏱️ {{ s.duration_min }} min • ⭐ {{ s.focus_rating }}/5 • {{ s.started_at[:10] }}</div>
-                {% if s.notes %}<div class="meta">{{ s.notes[:100] }}</div>{% endif %}
-            </div>
-            <form method="POST" action="{{ url_for('delete_session', session_id=s.id) }}" style="display:inline">
-                <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this session?')">Delete</button>
-            </form>
-        </li>
-        {% endfor %}
-    </ul>
-    {% else %}
-    <p style="color:var(--text-muted);margin-top:12px">No sessions logged yet. Start tracking your study time!</p>
-    {% endif %}
-</div>
+{% endif %}
 {% endblock %}

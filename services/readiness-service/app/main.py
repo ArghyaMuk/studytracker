@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -6,14 +7,25 @@ from sqlalchemy import text
 from app.api.routes.v1 import readiness
 from app.core.config import settings
 from app.core.db import engine
+from app.events.consumers import register_consumers
 from app.models import Base
+from shared.events import EventConsumer
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # Start RabbitMQ event consumer
+    consumer = EventConsumer(settings.rabbitmq_url, settings.service_name)
+    register_consumers(consumer)
+    asyncio.create_task(consumer.start())
+    app.state.consumer = consumer
+
     yield
+
+    await app.state.consumer.close()
     await engine.dispose()
 
 

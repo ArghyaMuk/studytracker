@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request as FastAPIRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients import CurriculumClient
@@ -14,16 +14,23 @@ def get_session_service(db: AsyncSession = Depends(get_db)) -> SessionService:
     return SessionService(
         repo=SessionRepository(db),
         curriculum_client=CurriculumClient(),
-        event_publisher=None,  # Injected at app startup when RabbitMQ is configured
+        event_publisher=None,
     )
 
 
 @router.post("", response_model=SessionResponse, status_code=201)
 async def create_session(
+    request: FastAPIRequest,
     data: SessionCreate,
     user_id: int = Query(..., description="User ID"),
-    service: SessionService = Depends(get_session_service),
+    db: AsyncSession = Depends(get_db),
 ):
+    publisher = getattr(request.app.state, "event_publisher", None)
+    service = SessionService(
+        repo=SessionRepository(db),
+        curriculum_client=CurriculumClient(),
+        event_publisher=publisher,
+    )
     return await service.create_session(user_id, data)
 
 

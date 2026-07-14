@@ -51,3 +51,16 @@ class UniversityTemplate(Base):
     program_id = Column(Integer, ForeignKey("programs.id"), nullable=False)
     semester = Column(Integer, nullable=False)
     subject_id = Column(Integer, ForeignKey("subjects.id"), nullable=False)
+
+
+class StudyMaterial(Base):
+    __tablename__ = "study_materials"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    subject_code = Column(String(50), nullable=False, index=True)
+    unit_number = Column(Integer, nullable=True)
+    title = Column(String(300), nullable=False)
+    material_type = Column(Enum("video", "pdf", "link", "notes", name="material_type_enum"), nullable=False)
+    url = Column(Text, nullable=False)  # YouTube URL, PDF path, or external link
+    description = Column(Text, nullable=True)
+    created_at = Column(String(30), nullable=True)

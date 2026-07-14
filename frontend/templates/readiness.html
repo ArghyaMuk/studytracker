@@ -7,46 +7,72 @@
 {% set subject_scores = scores|selectattr('unit_number', 'none')|list %}
 {% set avg = (subject_scores|sum(attribute='score') / subject_scores|length)|round|int if subject_scores else 0 %}
 
+<!-- Quiz Score Summary -->
+{% if quiz_history %}
+{% set total_attempts = quiz_history|length %}
+{% set avg_score = (quiz_history|sum(attribute='score') / total_attempts)|round|int if total_attempts else 0 %}
 <div class="stats-grid">
     <div class="stat-card">
-        <div class="label">Overall Readiness</div>
-        <div class="value" style="color:{{ 'var(--success)' if avg >= 60 else 'var(--warning)' if avg >= 30 else 'var(--danger)' }}">{{ avg }}%</div>
+        <div class="label">Quiz Avg Score</div>
+        <div class="value" style="color:{{ 'var(--success)' if avg_score >= 60 else 'var(--warning)' if avg_score >= 30 else 'var(--danger)' }}">{{ avg_score }}%</div>
     </div>
     <div class="stat-card">
-        <div class="label">Subjects Tracked</div>
-        <div class="value">{{ subject_scores|length }}</div>
+        <div class="label">Quizzes Taken</div>
+        <div class="value">{{ total_attempts }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Subjects Covered</div>
+        <div class="value">{{ quiz_history|map(attribute='subject_code')|unique|list|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Best Score</div>
+        <div class="value" style="color:var(--success)">{{ quiz_history|map(attribute='score')|max|round|int }}%</div>
     </div>
 </div>
 
-{% if subject_scores %}
-{% for s in subject_scores %}
+<!-- Per-Subject Quiz Performance -->
+{% set subjects_done = quiz_history|map(attribute='subject_code')|unique|list %}
+{% for subj in subjects_done %}
+{% set subj_attempts = quiz_history|selectattr('subject_code', 'equalto', subj)|list %}
+{% set subj_avg = (subj_attempts|sum(attribute='score') / subj_attempts|length)|round|int %}
 <div class="card">
     <div class="card-header">
-        <h3>{{ s.subject_code }}</h3>
-        <span class="badge {{ 'badge-green' if s.score >= 75 else 'badge-yellow' if s.score >= 50 else 'badge-red' }}">{{ s.score|int }}%</span>
+        <h3>{{ subj }}</h3>
+        <span class="badge {{ 'badge-green' if subj_avg >= 75 else 'badge-yellow' if subj_avg >= 50 else 'badge-red' }}">{{ subj_avg }}%</span>
     </div>
-    <div class="progress-bar">
-        <div class="progress-fill {{ 'green' if s.score >= 75 else 'yellow' if s.score >= 50 else 'red' }}" style="width:{{ s.score }}%"></div>
+    <div class="progress-bar" style="margin-bottom:12px">
+        <div class="progress-fill {{ 'green' if subj_avg >= 75 else 'yellow' if subj_avg >= 50 else 'red' }}" style="width:{{ subj_avg }}%"></div>
     </div>
-    {% set unit_scores = scores|selectattr('subject_code', 'equalto', s.subject_code)|rejectattr('unit_number', 'none')|list %}
-    {% if unit_scores %}
-    <div style="margin-top:12px;padding-left:12px;border-left:2px solid var(--border)">
-        {% for u in unit_scores|sort(attribute='unit_number') %}
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-            <span style="font-size:0.8rem;color:var(--text-muted);width:60px">Unit {{ u.unit_number }}</span>
-            <div class="progress-bar" style="flex:1">
-                <div class="progress-fill {{ 'green' if u.score >= 75 else 'yellow' if u.score >= 50 else 'red' }}" style="width:{{ u.score }}%"></div>
-            </div>
-            <span style="font-size:0.8rem;font-weight:600;width:40px;text-align:right">{{ u.score|int }}%</span>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
+    <table>
+        <thead><tr><th>Unit</th><th>Score</th><th>Date</th></tr></thead>
+        <tbody>
+            {% for a in subj_attempts %}
+            <tr>
+                <td>Unit {{ a.unit_number }}</td>
+                <td><span class="badge {{ 'badge-green' if a.score >= 75 else 'badge-yellow' if a.score >= 50 else 'badge-red' }}">{{ a.score|round|int }}%</span></td>
+                <td>{{ a.submitted_at[:10] if a.submitted_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 {% endfor %}
+
 {% else %}
-<div class="card">
-    <p style="color:var(--text-muted);text-align:center">No readiness scores yet. Log study sessions and take quizzes to build your scores.</p>
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="label">Overall Readiness</div>
+        <div class="value" style="color:var(--danger)">0%</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Subjects Tracked</div>
+        <div class="value">0</div>
+    </div>
+</div>
+<div class="card" style="text-align:center;padding:48px">
+    <p style="font-size:2rem;margin-bottom:8px">📊</p>
+    <p style="color:var(--text-muted)">No scores yet. Take quizzes to build your readiness scores!</p>
+    <a href="{{ url_for('quizzes_page') }}" class="btn btn-primary" style="margin-top:12px">Go to Quizzes</a>
 </div>
 {% endif %}
 {% endblock %}

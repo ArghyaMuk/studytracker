@@ -209,41 +209,42 @@ def dashboard():
                            readiness=readiness)
 
 
-# ── Study Sessions ──
+# ── Study Materials (was Study Sessions) ──
 
 @app.route("/sessions")
 @login_required
 def sessions_page():
-    user_id = session["user_id"]
-    sessions_data = api_get(f"/sessions?user_id={user_id}") or []
-    return render_template("sessions.html", sessions=sessions_data)
+    materials = api_get("/materials") or []
+    return render_template("sessions.html", materials=materials)
 
 
-@app.route("/sessions/add", methods=["POST"])
+@app.route("/materials/add", methods=["POST"])
 @login_required
-def add_session():
-    user_id = session["user_id"]
+@admin_required
+def add_material():
     data = {
         "subject_code": request.form["subject_code"],
-        "unit_number": int(request.form["unit_number"]),
-        "duration_min": int(request.form["duration_min"]),
-        "focus_rating": int(request.form["focus_rating"]),
-        "notes": request.form.get("notes", ""),
+        "unit_number": int(request.form["unit_number"]) if request.form.get("unit_number") else None,
+        "title": request.form["title"],
+        "material_type": request.form["material_type"],
+        "url": request.form["url"],
+        "description": request.form.get("description", ""),
     }
-    status, resp = api_post(f"/sessions?user_id={user_id}", data)
-    if status == 201:
-        flash("Session logged!", "success")
+    status_code, resp = api_post("/admin/materials", data)
+    if status_code == 201:
+        flash(f'Material "{data["title"]}" added!', "success")
     else:
-        flash(resp.get("detail", "Failed to log session"), "error")
+        flash(resp.get("detail", "Failed to add material"), "error")
     return redirect(url_for("sessions_page"))
 
 
-@app.route("/sessions/delete/<int:session_id>", methods=["POST"])
+@app.route("/materials/<int:material_id>/delete", methods=["POST"])
 @login_required
-def delete_session(session_id):
-    status = api_delete(f"/sessions/{session_id}")
-    if status == 204:
-        flash("Session deleted", "success")
+@admin_required
+def delete_material(material_id):
+    status_code = api_delete(f"/admin/materials/{material_id}")
+    if status_code == 204:
+        flash("Material deleted", "success")
     else:
         flash("Failed to delete", "error")
     return redirect(url_for("sessions_page"))
@@ -346,7 +347,9 @@ def grade_revision(item_id):
 def readiness_page():
     user_id = session["user_id"]
     scores = api_get(f"/readiness/{user_id}") or []
-    return render_template("readiness.html", scores=scores)
+    # Also get quiz history for score display
+    quiz_history = api_get(f"/quizzes/history?user_id={user_id}") or []
+    return render_template("readiness.html", scores=scores, quiz_history=quiz_history)
 
 
 # ── Settings ──

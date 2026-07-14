@@ -15,9 +15,7 @@
             </div>
             <nav class="sidebar-nav">
                 <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.path == '/dashboard' }}">📊 Dashboard</a>
-                {% if session.get('email') != 'admin@studypilot.com' %}
-                <a href="{{ url_for('sessions_page') }}" class="{{ 'active' if request.path == '/sessions' }}">📖 Study Sessions</a>
-                {% endif %}
+                <a href="{{ url_for('sessions_page') }}" class="{{ 'active' if request.path == '/sessions' }}">📚 Study Materials</a>
                 <a href="{{ url_for('quizzes_page') }}" class="{{ 'active' if request.path == '/quizzes' }}">🧠 Quizzes</a>
                 {% if session.get('email') != 'admin@studypilot.com' %}
                 <a href="{{ url_for('revision_page') }}" class="{{ 'active' if request.path == '/revision' }}">📅 Revision</a>

@@ -68,3 +68,72 @@ async def delete_subject(
     subject_id: int, service: CurriculumService = Depends(get_curriculum_service)
 ):
     await service.delete_subject(subject_id)
+
+
+# ── Study Materials ──
+
+@router.get("/materials")
+async def list_materials(
+    subject_code: str = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """List study materials, optionally filtered by subject."""
+    from app.models import StudyMaterial
+    from sqlalchemy import select
+
+    query = select(StudyMaterial).order_by(StudyMaterial.id.desc())
+    if subject_code:
+        query = query.where(StudyMaterial.subject_code == subject_code)
+    result = await db.execute(query)
+    materials = result.scalars().all()
+    return [
+        {
+            "id": m.id,
+            "subject_code": m.subject_code,
+            "unit_number": m.unit_number,
+            "title": m.title,
+            "material_type": m.material_type,
+            "url": m.url,
+            "description": m.description,
+            "created_at": m.created_at,
+        }
+        for m in materials
+    ]
+
+
+@router.post("/admin/materials", status_code=201)
+async def add_material(
+    data: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: add a study material (video, PDF link, notes)."""
+    from app.models import StudyMaterial
+    from datetime import datetime
+
+    material = StudyMaterial(
+        subject_code=data["subject_code"],
+        unit_number=data.get("unit_number"),
+        title=data["title"],
+        material_type=data["material_type"],
+        url=data["url"],
+        description=data.get("description", ""),
+        created_at=datetime.now().isoformat()[:19],
+    )
+    db.add(material)
+    await db.commit()
+    await db.refresh(material)
+    return {"id": material.id, "title": material.title}
+
+
+@router.delete("/admin/materials/{material_id}", status_code=204)
+async def delete_material(material_id: int, db: AsyncSession = Depends(get_db)):
+    """Admin: delete a study material."""
+    from app.models import StudyMaterial
+    from sqlalchemy import select, delete as sql_delete
+
+    result = await db.execute(select(StudyMaterial).where(StudyMaterial.id == material_id))
+    mat = result.scalar_one_or_none()
+    if not mat:
+        raise HTTPException(status_code=404, detail="Material not found")
+    await db.delete(mat)
+    await db.commit()

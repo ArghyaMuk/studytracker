@@ -1,34 +1,48 @@
 # StudyPilot — AI-Powered Study & Exam Readiness Platform
 
-An AI-powered microservices platform for college students that transforms passive study logging into active, personalized learning guidance for semester exams, lab vivas, and placement/competitive-exam prep.
+A secure, event-driven microservices platform for college students that transforms passive study logging into active, personalized learning guidance for semester exams, lab vivas, and placement/competitive-exam prep.
 
 ## Features
 
 ### For Students
-- **Take Quizzes** — Attempt quizzes set by admin (MCQ and Viva modes)
-- **Study Session Tracking** — Log sessions against subjects and units with duration, focus rating, and notes
+- **Take Quizzes** — Attempt MCQ and Viva quizzes set by admin, get instant scores and feedback
+- **Study Materials** — Access YouTube videos (embedded), PDF links, notes shared by admin
 - **Spaced Repetition** — Smart revision scheduling with interval ladder (1→3→7→14→30→60→90 days)
-- **Exam Readiness Scoring** — 0–100 score per subject/unit combining quiz accuracy, study consistency, and more
+- **Exam Readiness Scoring** — Track quiz performance per subject with progress bars
 - **Dashboard** — Overview of sessions, due revisions, and readiness stats
 
 ### For Admin
 - **Course Management** — Add/delete programs, subjects, and units for any degree
-- **AI Quiz Generation** — Generate quizzes using Gemini AI (with OpenRouter fallback)
-- **Manual Quiz Creation** — Write questions manually with options and correct answers
+- **AI Quiz Generation** — Generate quizzes using Gemini AI (with OpenRouter/Llama 3.1 fallback)
+- **Manual Quiz Creation** — Write questions manually with MCQ options and correct answers
+- **Study Materials Upload** — Add YouTube video URLs, PDF links, notes for students
 - **Student Management** — View all registered students, signup stats
-- **Platform Health** — Monitor all microservices status
+- **Platform Health** — Monitor all microservices status, quiz count, program count
+
+## Security
+
+| Feature | Implementation |
+|---------|---------------|
+| Authentication | JWT (access 15min + refresh 7d) with role claim |
+| Authorization | X-User-Id + X-User-Role headers enforced on every service |
+| IDOR Protection | Services verify authenticated user owns the resource |
+| Admin Enforcement | Server-side role check on all admin endpoints (not just frontend) |
+| Rate Limiting | Redis-backed sliding window (100 req/min per user) |
+| Password Security | bcrypt hashing, strong password policy |
+| Admin Bootstrap | Auto-seeded on first startup (no manual setup needed) |
+| CORS | Restricted to frontend origin |
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                   Flask Frontend (:3000)                      │
-│         HTML/CSS │ Jinja2 Templates │ Server-side             │
+│       Jinja2 Templates │ Server-side rendering │ CSS         │
 └──────────────────────────┬──────────────────────────────────┘
-                           │
+                           │ (Authorization: Bearer JWT)
 ┌──────────────────────────▼──────────────────────────────────┐
 │                    API Gateway (:8000)                        │
-│            JWT Auth │ CORS │ Rate Limiting │ Routing          │
+│     JWT Verify → X-User-Id/X-User-Role │ CORS │ Redis Rate  │
 └──┬────────┬────────┬────────┬────────┬────────┬────────┬────┘
    │        │        │        │        │        │        │
 ┌──▼──┐ ┌──▼───┐ ┌──▼──┐ ┌──▼──┐ ┌──▼───┐ ┌──▼────┐ ┌─▼─────┐
@@ -37,60 +51,83 @@ An AI-powered microservices platform for college students that transforms passiv
 │:8001│ │:8002 │ │:8003│ │:8005│ │:8004 │ │:8006  │ │:8007  │
 └──┬──┘ └──┬───┘ └──┬──┘ └──┬──┘ └──┬───┘ └──┬────┘ └──┬────┘
    │        │        │       │        │        │         │
-┌──▼────────▼────────▼───────▼────────▼────────▼─────────▼────┐
-│                  MySQL 8 (per-service schema)                 │
-│ users│curriculum│sessions│quizzes│repetition│readiness│notifs │
-└─────────────────────────────────────────────────────────────┘
-┌───────────────────────┐  ┌────────────────────────────────┐
-│     Redis (:6379)     │  │       RabbitMQ (:5672)          │
-│ Cache │ Rate Limiting │  │ session.logged │ quiz.completed │
-└───────────────────────┘  └────────────────────────────────┘
+   │        │        │       │   ┌────┴────────┴─────────┘
+   │        │        │       │   │  RabbitMQ Event Bus
+   │        │        │       │   │  (async consumers on startup)
+   │        │        └───────┼───┼──► session.logged
+   │        │                └───┼──► quiz.completed
+   │        │                    └──► readiness.updated
+   │        │
+┌──▼────────▼────────────────────────────────────────────────┐
+│                  MySQL 8 (per-service schema)                │
+│ users│curriculum│sessions│quizzes│repetition│readiness│notifs│
+└────────────────────────────────────────────────────────────┘
+┌───────────────────────┐
+│     Redis (:6379)     │
+│ Rate Limiting (sorted │
+│ set sliding window)   │
+└───────────────────────┘
+```
+
+## Event-Driven Flow
+
+```
+Student logs session ──► Session Service publishes session.logged
+                              │
+                              ├──► Repetition Service (updates review interval)
+                              └──► Readiness Service (recomputes score)
+                                        │
+                                        └──► publishes readiness.updated
+                                                  │
+                                                  └──► Notification Service (alerts on drop)
+
+Student submits quiz ──► Quiz Service publishes quiz.completed
+                              │
+                              ├──► Repetition Service (adjusts schedule by score)
+                              └──► Readiness Service (recomputes score)
 ```
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Flask, Jinja2, Vanilla HTML/CSS, JavaScript |
+| Frontend | Flask 3.1, Jinja2, Vanilla HTML/CSS/JS |
 | Backend | Python 3.12, FastAPI (async) |
-| Database | MySQL 8 (database-per-service) |
-| Cache | Redis |
-| Message Broker | RabbitMQ |
-| AI/LLM | Google Gemini (primary) → OpenRouter/Llama 3.1 (fallback) |
+| Database | MySQL 8 (database-per-service, 7 schemas) |
+| Cache / Rate Limit | Redis 7 (sorted-set sliding window) |
+| Message Broker | RabbitMQ 3 (topic exchange, durable queues) |
+| AI/LLM | Google Gemini 2.0 Flash → OpenRouter/Llama 3.1 8B (fallback) |
 | ORM | SQLAlchemy 2.0 (async) |
+| Auth | JWT (python-jose) with role claims |
 | Containers | Docker + docker-compose |
 
 ## Quick Start
 
 ### Prerequisites
 - Docker Desktop (running)
-- Python 3.10+ (for frontend)
+- Python 3.10+ (for Flask frontend)
 
 ### One-Click Start
-
 ```bash
 start.bat
 ```
-
-Starts all backend services (Docker) + Flask frontend automatically.
+Starts Docker (backend) + Flask (frontend). Admin account auto-created.
 
 ### One-Click Stop
-
 ```bash
 stop.bat
 ```
 
 ### Manual Start
-
 ```bash
-# 1. Copy environment file
+# 1. Copy environment
 cp .env.example .env
-# Edit .env to add your GEMINI_API_KEY and/or OPENROUTER_API_KEY
+# Edit: add GEMINI_API_KEY and/or OPENROUTER_API_KEY
 
-# 2. Start backend
+# 2. Backend
 docker-compose up -d --build
 
-# 3. Start frontend
+# 3. Frontend
 cd frontend
 pip install -r requirements.txt
 python app.py
@@ -98,190 +135,180 @@ python app.py
 
 ## Default Accounts
 
-| Role | Email | Password | Sees |
-|------|-------|----------|------|
-| Admin | `admin@studypilot.com` | `Admin@1234` | Dashboard, Quizzes (create), Settings, Admin Panel |
-| Student | `test@student.com` | `Test@1234` | Dashboard, Sessions, Quizzes (take), Revision, Readiness, Settings |
+| Role | Email | Password | Auto-created |
+|------|-------|----------|-------------|
+| Admin | `admin@studypilot.com` | `Admin@1234` | Yes (on first startup) |
+| Student | Register via `/register` | Any strong password | No |
 
 ## Access Control
 
 | Feature | Admin | Student |
 |---------|-------|---------|
-| Create quizzes (AI + Manual) | ✅ | ❌ |
+| Create/delete programs & subjects | ✅ | ❌ (403) |
+| Generate AI quizzes | ✅ | ❌ (403) |
+| Create manual quizzes | ✅ | ❌ (403) |
+| Delete quizzes | ✅ | ❌ (403) |
 | Take quizzes | ✅ | ✅ |
-| View students | ✅ | ❌ |
-| Manage courses | ✅ | ❌ |
-| Log study sessions | ❌ | ✅ |
-| Spaced repetition | ❌ | ✅ |
-| Readiness scores | ❌ | ✅ |
-| Settings | ✅ | ✅ |
+| Add study materials (YouTube, PDF) | ✅ | ❌ (403) |
+| View study materials | ✅ | ✅ |
+| View all students | ✅ | ❌ (403) |
+| Log study sessions | ✅ | ✅ (own only) |
+| View revision schedule | ❌ | ✅ (own only) |
+| View readiness scores | ❌ | ✅ (own only) |
+| Access other user's data | ❌ (403) | ❌ (403) |
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `GEMINI_API_KEY` | Google Gemini API key (primary AI provider) |
-| `OPENROUTER_API_KEY` | OpenRouter API key (fallback when Gemini quota exceeded) |
-| `JWT_SECRET_KEY` | Secret for JWT token signing |
-| `DATABASE_URL` | MySQL connection string |
-| `REDIS_URL` | Redis connection string |
-| `RABBITMQ_URL` | RabbitMQ connection string |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | For AI quizzes | Google Gemini API key (primary) |
+| `OPENROUTER_API_KEY` | Fallback | OpenRouter key (used when Gemini quota exceeded) |
+| `JWT_SECRET_KEY` | Yes | Secret for JWT signing |
+| `DATABASE_URL` | Yes | MySQL connection string |
+| `REDIS_URL` | Yes | Redis connection (rate limiting) |
+| `RABBITMQ_URL` | Yes | RabbitMQ connection (events) |
 
 ## Services
 
-| Service | Port | Responsibilities |
-|---------|------|-----------------|
-| Frontend (Flask) | 3000 | All pages, server-side rendering |
-| API Gateway | 8000 | Routing, JWT auth, CORS, rate limiting (60s timeout) |
-| User Service | 8001 | Registration, login, profiles, admin user list |
-| Curriculum Service | 8002 | Programs, subjects, units (syllabus-aware) |
-| Session Service | 8003 | Study session CRUD + event publishing |
-| Repetition Service | 8004 | Spaced repetition scheduling |
-| Quiz Service | 8005 | AI quiz generation, custom quizzes, quiz submissions |
-| Readiness Service | 8006 | Exam readiness scoring (weighted formula) |
-| Notification Service | 8007 | Digest, alerts, countdowns, nudges |
-
-## AI Quiz Generation Flow
-
-```
-Admin creates quiz for subject CS301, Unit 1
-        │
-        ▼
-Quiz Service looks up Curriculum Service:
-  → Subject name: "Data Structures"
-  → Unit title: "Arrays and Linked Lists"
-  → Topics: ["arrays", "linked-lists", "stacks"]
-        │
-        ▼
-Sends to LLM: "Generate 5 MCQ on Data Structures - Arrays and Linked Lists"
-        │
-        ├── Try Gemini (primary)
-        │   └── If 429/quota exceeded ──┐
-        │                               ▼
-        └── Try OpenRouter (fallback: Llama 3.1 8B)
-                │
-                ▼
-Quiz saved to database → Students can take it from /quizzes
-```
+| Service | Port | Responsibilities | Events |
+|---------|------|-----------------|--------|
+| Flask Frontend | 3000 | All pages, SSR | — |
+| API Gateway | 8000 | JWT verify, route, rate limit, CORS | — |
+| User Service | 8001 | Auth, profiles, admin bootstrap | — |
+| Curriculum Service | 8002 | Programs, subjects, units, materials | — |
+| Session Service | 8003 | Study session CRUD | Publishes: `session.logged` |
+| Repetition Service | 8004 | Spaced repetition scheduling | Consumes: `session.logged`, `quiz.completed` |
+| Quiz Service | 8005 | AI/manual quiz gen, submissions | Publishes: `quiz.completed` |
+| Readiness Service | 8006 | Readiness scoring | Consumes: `session.logged`, `quiz.completed` / Publishes: `readiness.updated` |
+| Notification Service | 8007 | Alerts, digests | Consumes: `readiness.updated` |
 
 ## Pages
 
-| URL | Who | Description |
-|-----|-----|-------------|
-| `/login` | All | Login page |
-| `/register` | All | Registration page |
-| `/dashboard` | All | Overview stats |
-| `/sessions` | Student | Log and track study sessions |
-| `/quizzes` | Student: take / Admin: create | Quiz list + creation |
-| `/quizzes/<id>/take` | Student | Take a specific quiz |
-| `/revision` | Student | Spaced repetition schedule + grading |
-| `/readiness` | Student | Readiness scores per subject |
-| `/settings` | All | Profile and preferences |
-| `/admin` | Admin | Course management + student stats |
+| URL | Access | Description |
+|-----|--------|-------------|
+| `/login` | Public | Login |
+| `/register` | Public | Registration |
+| `/dashboard` | All | Stats overview |
+| `/sessions` | All | Study Materials (YouTube, PDFs, links) |
+| `/quizzes` | Student: take / Admin: create+take | Quiz list |
+| `/quizzes/<id>/take` | Authenticated | Take a quiz |
+| `/revision` | Student | Spaced repetition grading |
+| `/readiness` | Student | Quiz scores + readiness |
+| `/settings` | All | Profile settings |
+| `/admin` | Admin | Dashboard + student stats + programs |
 | `/admin/students` | Admin | Full student list |
-| `/admin/quizzes` | Admin | AI generate + manual quiz creation |
+| `/admin/quizzes` | Admin | AI generate + manual create |
 | `/admin/programs/<id>/subjects` | Admin | Manage subjects per semester |
 
-## Spaced Repetition System
-
-Simple interval-based revision scheduling:
+## AI Quiz Generation
 
 ```
-How well did you recall?
+Admin selects subject (MCA201) + unit (1) + count (5)
+        │
+        ▼
+Quiz Service → Curriculum Service:
+  → Name: "Python Programming"
+  → Unit: "Basics and Data Types"
+  → Topics: ["variables", "loops", "functions"]
+        │
+        ▼
+LLM Prompt: "Generate 5 MCQ on Python Programming - Basics and Data Types"
+        │
+        ├── Try Gemini 2.0 Flash (primary)
+        │   └── 429 quota exceeded? ──┐
+        │                             ▼
+        └── Try OpenRouter (Llama 3.1 8B via DeepInfra)
+                │
+                ▼
+Quiz saved → Students see it on /quizzes → Take → Score
+```
+
+## Spaced Repetition
+
+```
+Interval Ladder:  1 → 3 → 7 → 14 → 30 → 60 → 90 days
+
 ┌──────────────────────────────────────────┐
-│ Forgot (0-1)  → Review tomorrow          │
+│ Forgot (0-1)  → Reset to day 1           │
 │ Barely (2)    → Same interval again       │
 │ Good (3-4)    → Next level               │
 │ Too Easy (5)  → Skip a level             │
 └──────────────────────────────────────────┘
 
-Interval ladder:  1 → 3 → 7 → 14 → 30 → 60 → 90 days
-
-Near exams: intervals are shortened automatically
-so all units get reviewed before the exam date.
+Near exams: intervals capped to (days_remaining / units_left)
 ```
 
-## Readiness Score Formula
+## Readiness Score
 
-```
-score = 0.25 × quiz_accuracy
-      + 0.20 × pyq_accuracy
-      + 0.20 × review_currency
-      + 0.15 × unit_coverage
-      + 0.10 × study_consistency
-      + 0.10 × days_remaining_factor
-```
+Based on quiz attempt history per subject:
+- Average score across all attempts
+- Per-subject progress bars
+- Per-unit breakdown
+- Best score tracking
 
-Weights adjust for placement/competitive prep (PYQ weight increases to 30%, days_remaining drops to 0%).
+## Database
+
+```bash
+# View all databases
+docker-compose exec mysql mysql -uroot -ppassword -e "SHOW DATABASES;"
+
+# View users
+docker-compose exec mysql mysql -uroot -ppassword studypilot_users \
+  -e "SELECT id, name, email, college FROM users;"
+
+# View quizzes
+docker-compose exec mysql mysql -uroot -ppassword studypilot_quizzes \
+  -e "SELECT id, subject_code, unit_number, mode FROM quizzes;"
+
+# View study materials
+docker-compose exec mysql mysql -uroot -ppassword studypilot_curriculum \
+  -e "SELECT id, subject_code, title, material_type FROM study_materials;"
+```
 
 ## Project Structure
 
 ```
 StudyPilot/
-├── frontend/                   # Flask + HTML/CSS
-│   ├── app.py                 # Flask application (all routes)
-│   ├── templates/             # Jinja2 HTML templates
-│   │   ├── base.html          # Layout with sidebar + clock
-│   │   ├── login.html         # Auth pages
-│   │   ├── register.html
-│   │   ├── dashboard.html     # Student/admin dashboard
-│   │   ├── sessions.html      # Study session tracking
-│   │   ├── quizzes.html       # Take quizzes (student) / Create (admin)
-│   │   ├── quiz_take.html     # Quiz-taking interface
-│   │   ├── quiz_result.html   # Score + feedback
-│   │   ├── revision.html      # Spaced repetition
-│   │   ├── readiness.html     # Readiness scores
-│   │   ├── settings.html      # Profile settings
-│   │   ├── admin.html         # Admin panel
-│   │   ├── admin_students.html # Student management
-│   │   ├── admin_subjects.html # Subject management
-│   │   └── admin_quizzes.html  # Quiz creation
-│   ├── static/css/style.css   # All styles
-│   ├── static/js/clock.js     # Real-time clock
-│   └── requirements.txt       # flask, requests, python-dotenv
+├── frontend/                    # Flask frontend
+│   ├── app.py                  # All routes + auth + API helpers
+│   ├── templates/              # 14 Jinja2 HTML templates
+│   ├── static/css/style.css    # All styles
+│   ├── static/js/clock.js      # Real-time clock
+│   └── requirements.txt        # flask, requests, python-dotenv
 ├── services/
-│   ├── api-gateway/           # FastAPI reverse proxy + auth + CORS
-│   ├── user-service/          # Registration, JWT, profiles, admin user list
-│   ├── curriculum-service/    # Programs, subjects, units (CRUD + delete)
-│   ├── session-service/       # Study session tracking
-│   ├── quiz-service/          # AI quiz gen + custom quizzes + submissions
-│   ├── repetition-service/    # Spaced repetition (interval ladder)
-│   ├── readiness-service/     # Exam readiness scoring
-│   └── notification-service/  # Alerts, digests, countdowns
-├── shared/                    # Shared libs (auth, events, config, redis)
-├── scripts/                   # DB init, curriculum seed data
-├── docker-compose.yml         # Full stack orchestration
-├── start.bat                  # One-click start all services
-├── stop.bat                   # One-click stop all services
-├── .env                       # Environment configuration
-└── .env.example               # Template for env vars
+│   ├── api-gateway/            # JWT verify, CORS, Redis rate limit, routing
+│   ├── user-service/           # Auth, profiles, admin bootstrap, user list
+│   ├── curriculum-service/     # Programs, subjects, units, study materials
+│   ├── session-service/        # Session CRUD + event publish
+│   ├── quiz-service/           # AI gen (Gemini/OpenRouter) + manual + submit
+│   ├── repetition-service/     # Interval ladder + event consume
+│   ├── readiness-service/      # Score compute + event consume/publish
+│   └── notification-service/   # Event consume + alert delivery
+├── shared/                     # Shared Python libs
+│   ├── auth/                   # JWT, passwords, dependencies (X-User-Id)
+│   ├── config/                 # BaseServiceSettings (pydantic-settings)
+│   ├── events/                 # EventPublisher, EventConsumer, schemas
+│   └── messaging/              # Redis client
+├── scripts/
+│   ├── init-databases.sql      # Creates 7 MySQL schemas
+│   └── seed_curriculum.py      # Example B.Tech CSE seed
+├── docker-compose.yml          # Full orchestration (11 containers)
+├── start.bat                   # One-click start
+├── stop.bat                    # One-click stop
+├── .env                        # Local config (gitignored)
+└── .env.example                # Template
 ```
 
-## Database Schema
+## Known Limitations
 
-Check the database:
-```bash
-# List all databases
-docker-compose exec mysql mysql -uroot -ppassword -e "SHOW DATABASES;"
-
-# View users
-docker-compose exec mysql mysql -uroot -ppassword studypilot_users -e "SELECT * FROM users;"
-
-# View quizzes
-docker-compose exec mysql mysql -uroot -ppassword studypilot_quizzes -e "SELECT * FROM quizzes;"
-
-# View sessions
-docker-compose exec mysql mysql -uroot -ppassword studypilot_sessions -e "SELECT * FROM sessions;"
-```
-
-## Event System
-
-| Event | Producer | Consumers |
-|-------|----------|-----------|
-| `session.logged` | Session Service | Repetition, Readiness |
-| `session.deleted` | Session Service | Readiness |
-| `quiz.completed` | Quiz Service | Repetition, Readiness |
-| `readiness.updated` | Readiness Service | Notification |
+| Item | Status | Notes |
+|------|--------|-------|
+| Viva quiz grading | Exact match only | Semantic similarity (NLP) planned |
+| PYQ upload/parsing | Stub | OCR + LLM extraction not yet wired |
+| Weak-topic quiz gen | Stub | Needs readiness → quiz service call |
+| Login lockout | Not implemented | Spec requires 5-attempt lock |
+| Materials cleanup on subject delete | Partial | Quizzes cleaned, materials may orphan |
+| Kubernetes manifests | Not included | Docker-compose only for now |
 
 ## License
 

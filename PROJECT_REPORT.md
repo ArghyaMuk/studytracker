@@ -58,13 +58,22 @@ Students can take scheduled exams, access study materials, follow spaced repetit
 | Fig 2 | Microservices Communication Flow | Ch-3 |
 | Fig 3 | Event-Driven Architecture | Ch-3 |
 | Fig 4 | AI Quiz Generation Pipeline | Ch-3 |
-| Fig 5 | Spaced Repetition Algorithm | Ch-3 |
+| Fig 5 | Spaced Repetition Algorithm Flowchart | Ch-3 |
 | Fig 6 | ER Diagram - User Service | Ch-3 |
 | Fig 7 | ER Diagram - Quiz Service | Ch-3 |
-| Fig 8 | Login Page Screenshot | Ch-4 |
-| Fig 9 | Admin Dashboard Screenshot | Ch-4 |
-| Fig 10 | Student Exam Page Screenshot | Ch-4 |
-| Fig 11 | Quiz Results Screenshot | Ch-4 |
+| Fig 8 | ER Diagram - Curriculum Service | Ch-3 |
+| Fig 9 | Login Page Screenshot | Ch-4 |
+| Fig 10 | Admin Dashboard Screenshot | Ch-4 |
+| Fig 11 | Admin Quiz Creation (AI + Manual) | Ch-4 |
+| Fig 12 | Admin Exam Scheduling | Ch-4 |
+| Fig 13 | Admin Student Results | Ch-4 |
+| Fig 14 | Admin Course Enrollment | Ch-4 |
+| Fig 15 | Student Exam Schedule with "Start Exam" | Ch-4 |
+| Fig 16 | Student Taking Quiz (MCQ) | Ch-4 |
+| Fig 17 | Quiz Results with Feedback | Ch-4 |
+| Fig 18 | Study Materials (Embedded YouTube) | Ch-4 |
+| Fig 19 | Spaced Repetition Page | Ch-4 |
+| Fig 20 | Readiness Scores with Progress Bars | Ch-4 |
 
 ---
 
@@ -360,7 +369,28 @@ DOWNSTREAM ENFORCEMENT:
 **Repetition Service (studypilot_repetition):**
 - review_items (id, user_id, subject_code, unit_number, ease_factor, interval_days, repetitions, next_review_date)
 
-### 3.8 Security Implementation
+### 3.8 Access Control Matrix
+
+| Feature | Admin | Student | Enforcement |
+|---------|-------|---------|-------------|
+| Create/delete programs & subjects | ✅ | ❌ 403 | X-User-Role header |
+| Generate AI quizzes | ✅ | ❌ 403 | X-User-Role header |
+| Create manual quizzes | ✅ | ❌ 403 | X-User-Role header |
+| Delete quizzes | ✅ | ❌ 403 | X-User-Role header |
+| Schedule exams | ✅ | ❌ 403 | X-User-Role header |
+| Assign quizzes to exams | ✅ | ❌ 403 | X-User-Role header |
+| Add study materials | ✅ | ❌ 403 | X-User-Role header |
+| Enroll students in courses | ✅ | ❌ 403 | X-User-Role header |
+| View all student results | ✅ | ❌ 403 | X-User-Role header |
+| View student list | ✅ | ❌ 403 | X-User-Role header |
+| Take exams (Start Exam button) | ❌ | ✅ | Frontend conditional |
+| View study materials | ✅ | ✅ | Public endpoint |
+| View exam schedule | ✅ | ✅ | Public endpoint |
+| Spaced repetition | ❌ | ✅ | Student-only page |
+| Readiness scores | ❌ | ✅ | X-User-Id ownership |
+| Access other user's data | ❌ 403 | ❌ 403 | X-User-Id check |
+
+### 3.9 Security Implementation
 
 | Security Measure | Implementation |
 |-----------------|----------------|
@@ -388,13 +418,37 @@ Readiness Service ──[readiness.updated]──► RabbitMQ ──► Notifica
 Each event contains: event_id (UUID), event_type, timestamp, correlation_id, payload.
 Consumers are idempotent (dedup by event_id).
 
-### 3.10 Project File Structure
+### 3.10 Frontend Pages (19 Templates)
+
+| # | Template | URL | Access | Description |
+|---|----------|-----|--------|-------------|
+| 1 | base.html | — | — | Layout: sidebar + top bar + clock |
+| 2 | login.html | /login | Public | Email/password login |
+| 3 | register.html | /register | Public | Student registration |
+| 4 | dashboard.html | /dashboard | All | Stats overview |
+| 5 | sessions.html | /sessions | All | Study materials (YouTube/PDF) |
+| 6 | quizzes.html | /quizzes | Admin: create, Student: take | Quiz management |
+| 7 | quiz_take.html | /quizzes/{id}/take | Student | MCQ answering interface |
+| 8 | quiz_result.html | — | Student | Score + per-question feedback |
+| 9 | exams.html | /exams | All | Exam schedule + "Start Exam" |
+| 10 | revision.html | /revision | Student | Spaced repetition grading |
+| 11 | readiness.html | /readiness | Student | Quiz scores + progress |
+| 12 | settings.html | /settings | All | Profile + preferences |
+| 13 | admin.html | /admin | Admin | Dashboard + stats + programs |
+| 14 | admin_students.html | /admin/students | Admin | Full student list |
+| 15 | admin_quizzes.html | /admin/quizzes | Admin | AI generate + manual create |
+| 16 | admin_exams.html | /admin/exams | Admin | Schedule exams + assign quiz |
+| 17 | admin_results.html | /admin/results | Admin | All quiz scores + progress |
+| 18 | admin_enrollments.html | /admin/enrollments | Admin | Assign courses to students |
+| 19 | admin_subjects.html | /admin/programs/{id}/subjects | Admin | Subject + unit CRUD |
+
+### 3.11 Project File Structure
 
 ```
 StudyPilot/
 ├── frontend/                    # Flask Frontend (Port 3000)
 │   ├── app.py                  # All routes, auth, API helpers
-│   ├── templates/ (15 files)   # Jinja2 HTML templates
+│   ├── templates/ (19 files)   # Jinja2 HTML templates
 │   ├── static/css/style.css    # All styles (animations, responsive)
 │   ├── static/js/clock.js      # Real-time clock widget
 │   └── requirements.txt        # flask, requests, python-dotenv
@@ -443,22 +497,33 @@ All 7 microservices start and pass health checks within 20 seconds:
 
 ### 4.2 Functional Testing Results
 
-| Test Case | Input | Expected | Actual | Status |
-|-----------|-------|----------|--------|--------|
-| Admin login | admin@studypilot.com / Admin@1234 | JWT tokens returned | Tokens received | ✅ Pass |
-| Student registration | Valid form data | Account created, JWT issued | Works correctly | ✅ Pass |
-| Create program | "MCA", 4 semesters | Program saved | ID returned | ✅ Pass |
-| Add subject with units | MCA201, Python, 4 units | Subject + units saved | Created successfully | ✅ Pass |
-| AI quiz generation | Subject MCA201, Unit 1, 5 questions | 5 MCQ questions from Gemini/OpenRouter | Questions generated | ✅ Pass |
-| Manual quiz creation | 3 custom questions | Quiz saved with questions | Works correctly | ✅ Pass |
-| Student takes exam | Selects answers, submits | Score calculated, feedback shown | 60% score displayed | ✅ Pass |
-| Admin views results | Navigate to /admin/results | All attempts displayed | Table populated | ✅ Pass |
-| Schedule exam with quiz | Date + quiz ID | Exam created, student sees "Start Exam" | Button visible | ✅ Pass |
-| Add YouTube material | YouTube URL | Video embeds for student | Plays inline | ✅ Pass |
-| Spaced repetition grade | Click "Good" | Interval advances to next level | Updated correctly | ✅ Pass |
-| IDOR prevention | Change user_id in URL | 403 Forbidden | Access denied | ✅ Pass |
-| Admin role enforcement | Student hits admin API | 403 Forbidden | Blocked correctly | ✅ Pass |
-| Rate limiting | >100 requests/min | 429 Too Many Requests | Rate limited | ✅ Pass |
+| # | Test Case | Input | Expected | Status |
+|---|-----------|-------|----------|--------|
+| 1 | Admin login | admin@studypilot.com / Admin@1234 | JWT tokens returned | ✅ Pass |
+| 2 | Student registration | Valid form data | Account created, JWT issued | ✅ Pass |
+| 3 | Create program | "MCA", 2 semesters | Program saved with ID | ✅ Pass |
+| 4 | Add subject with units | MCA201, Python, 4 units | Subject + units saved | ✅ Pass |
+| 5 | Delete program cascade | Delete MCA program | Subjects + quizzes deleted | ✅ Pass |
+| 6 | AI quiz generation (OpenRouter) | MCA201 Unit 1, 5 questions | Real MCQ questions generated | ✅ Pass |
+| 7 | Manual quiz creation | Admin adds 3 custom Qs | Quiz saved in DB | ✅ Pass |
+| 8 | Student takes quiz | Selects MCQ answers, submits | Score + per-Q feedback | ✅ Pass |
+| 9 | Admin views results | /admin/results | All attempts with scores | ✅ Pass |
+| 10 | Schedule exam with quiz | Date + quiz_id | Student sees "Start Exam" | ✅ Pass |
+| 11 | Student starts exam | Clicks "Start Exam" | Quiz loads, can answer | ✅ Pass |
+| 12 | Admin sees no "Start Exam" | Admin views /exams | Shows quiz ID badge only | ✅ Pass |
+| 13 | Add YouTube material | YouTube URL | Video embeds inline | ✅ Pass |
+| 14 | Add PDF material | PDF link | Opens in new tab | ✅ Pass |
+| 15 | Enroll student in course | Select student + subject | Enrollment saved | ✅ Pass |
+| 16 | Duplicate enrollment | Same student + subject | 409 Conflict | ✅ Pass |
+| 17 | Spaced repetition grade "Good" | Click Good button | Interval moves to next level | ✅ Pass |
+| 18 | Spaced repetition grade "Forgot" | Click Forgot | Resets to 1 day | ✅ Pass |
+| 19 | IDOR: access other's sessions | Change user_id in URL | 403 Forbidden | ✅ Pass |
+| 20 | Student hits admin API | POST /admin/programs | 403 Forbidden | ✅ Pass |
+| 21 | Rate limiting | >100 requests/min | 429 + Retry-After header | ✅ Pass |
+| 22 | Token refresh | Expired access + valid refresh | New access token issued | ✅ Pass |
+| 23 | Admin bootstrap | Fresh DB startup | admin@studypilot.com auto-created | ✅ Pass |
+| 24 | Quiz delete cascade | Delete quiz | Questions + attempts removed | ✅ Pass |
+| 25 | Health check | GET /health | All 7 services "healthy" | ✅ Pass |
 
 ### 4.3 Performance Results
 
@@ -473,17 +538,32 @@ All 7 microservices start and pass health checks within 20 seconds:
 
 ### 4.4 Screenshots
 
-(Include screenshots of:)
-1. Login page with gradient background
-2. Admin dashboard with student stats
-3. Admin quiz creation (AI + Manual)
-4. Admin exam scheduling
-5. Student exam schedule with "Start Exam" button
-6. Student taking a quiz (MCQ options)
-7. Quiz results with score and feedback
-8. Study materials page with embedded YouTube
-9. Spaced repetition page with grade buttons
-10. Readiness scores with progress bars
+(Capture and include the following screenshots from http://localhost:3000)
+
+**Authentication:**
+1. Login page (purple gradient background, email/password form)
+2. Registration page (name, email, password, college, semester)
+
+**Admin Panel:**
+3. Admin Dashboard (/admin) — student stats, programs, quick action buttons
+4. Admin Quiz Creation (/quizzes) — AI generate form + manual add form
+5. Admin Custom Quiz Page (/admin/quizzes) — AI generate + manual with question builder
+6. Admin Exam Scheduling (/admin/exams) — form with quiz assignment dropdown
+7. Admin Student Results (/admin/results) — scores table + per-student progress
+8. Admin Student Management (/admin/students) — full student list
+9. Admin Course Enrollment (/admin/enrollments) — student + subject dropdowns
+10. Admin Subjects Page (/admin/programs/{id}/subjects) — semester tabs, unit management
+11. Admin Study Materials (/sessions as admin) — add YouTube/PDF form
+
+**Student Portal:**
+12. Student Dashboard (/dashboard) — stat cards, revision plan
+13. Student Exam Schedule (/exams) — "Start Exam" button visible
+14. Student Taking Quiz (/quizzes/{id}/take) — MCQ options, submit button
+15. Quiz Results Page — score percentage, correct/wrong per question
+16. Study Materials (/sessions as student) — embedded YouTube, PDF links
+17. Spaced Repetition (/revision) — due today cards with Forgot/Hard/Good/Easy buttons
+18. Readiness Scores (/readiness) — per-subject progress bars, quiz history
+19. Settings Page (/settings) — profile form, notification preferences
 
 ### 4.5 Discussion
 
@@ -543,7 +623,11 @@ StudyPilot successfully demonstrates the feasibility of building an AI-powered e
 - **GitHub Repository:** https://github.com/ArghyaMuk/studytracker
 - **Technology Domain:** Web Development, Artificial Intelligence, Microservices
 - **Development Period:** July 2026
-- **Total Lines of Code:** ~5,000+ (Python backend) + ~2,000 (HTML/CSS/JS frontend)
+- **Total Lines of Code:** ~4,600 (Python backend + Flask) + ~1,600 (HTML/CSS/JS frontend) = ~6,200 total
+- **Python Files:** 180 across all services and shared libraries
+- **HTML Templates:** 19 Jinja2 templates
+- **Microservices:** 8 (7 backend + 1 gateway)
+- **Docker Containers:** 11 (8 services + MySQL + Redis + RabbitMQ)
 
 ---
 

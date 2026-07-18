@@ -462,6 +462,58 @@ def admin_enrollments():
                            subjects=all_subjects)
 
 
+@app.route("/admin/results")
+@login_required
+@admin_required
+def admin_results():
+    # Get all quiz attempts
+    all_attempts = api_get("/quizzes/history/all") or []
+    # Get student list for name lookup
+    user_data = api_get("/users/admin/all") or {"users": []}
+    users_map = {u["id"]: u for u in user_data.get("users", [])}
+
+    # Enrich attempts with student names
+    for a in all_attempts:
+        user = users_map.get(a.get("user_id"))
+        a["user_name"] = user["name"] if user else ""
+        a["user_email"] = user["email"] if user else ""
+
+    # Calculate stats
+    avg_score = round(sum(a["score"] for a in all_attempts) / len(all_attempts)) if all_attempts else 0
+    pass_count = sum(1 for a in all_attempts if a["score"] >= 50)
+    pass_rate = round(pass_count / len(all_attempts) * 100) if all_attempts else 0
+
+    # Per-student progress
+    student_scores = {}
+    for a in all_attempts:
+        uid = a.get("user_id")
+        if uid not in student_scores:
+            student_scores[uid] = {
+                "name": a["user_name"],
+                "email": a["user_email"],
+                "scores": [],
+            }
+        student_scores[uid]["scores"].append(a["score"])
+
+    students_with_attempts = [
+        {
+            "name": s["name"],
+            "email": s["email"],
+            "attempt_count": len(s["scores"]),
+            "avg_score": round(sum(s["scores"]) / len(s["scores"])),
+        }
+        for s in student_scores.values()
+        if s["name"]  # Skip admin
+    ]
+    students_with_attempts.sort(key=lambda x: x["avg_score"], reverse=True)
+
+    return render_template("admin_results.html",
+                           all_attempts=all_attempts,
+                           students_with_attempts=students_with_attempts,
+                           avg_score=avg_score,
+                           pass_rate=pass_rate)
+
+
 @app.route("/admin/enrollments/add", methods=["POST"])
 @login_required
 @admin_required

@@ -44,9 +44,13 @@
         </div>
         <div>
             {% if exam.quiz_id %}
-            <a href="{{ url_for('take_quiz', quiz_id=exam.quiz_id) }}" class="btn btn-success">
-                ✍️ Start Exam
-            </a>
+                {% if session.get('email') != 'admin@studypilot.com' %}
+                <a href="{{ url_for('take_quiz', quiz_id=exam.quiz_id) }}" class="btn btn-success">
+                    ✍️ Start Exam
+                </a>
+                {% else %}
+                <span class="badge badge-green">Quiz #{{ exam.quiz_id }}</span>
+                {% endif %}
             {% else %}
             <span style="color:var(--text-muted);font-size:0.8rem">Offline exam</span>
             {% endif %}

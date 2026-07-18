@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Admin - Student Results{% endblock %}
+{% block content %}
+<h1>Student Results & Progress</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">
+    View quiz scores and study progress for all students •
+    <a href="{{ url_for('admin_page') }}" style="color:var(--primary);text-decoration:none">← Back to Admin</a>
+</p>
+
+<!-- Summary Stats -->
+<div class="stats-grid" style="margin-bottom:24px">
+    <div class="stat-card">
+        <div class="label">Total Attempts</div>
+        <div class="value">{{ all_attempts|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Students Who Took Exams</div>
+        <div class="value">{{ students_with_attempts|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Average Score</div>
+        <div class="value" style="color:{{ 'var(--success)' if avg_score >= 60 else 'var(--warning)' if avg_score >= 40 else 'var(--danger)' }}">{{ avg_score }}%</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Pass Rate (≥50%)</div>
+        <div class="value">{{ pass_rate }}%</div>
+    </div>
+</div>
+
+<!-- Filter by student -->
+<div class="card">
+    <h3>📊 All Quiz Results</h3>
+    {% if all_attempts %}
+    <table style="margin-top:12px">
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Subject</th>
+                <th>Unit</th>
+                <th>Score</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in all_attempts %}
+            <tr>
+                <td>
+                    <strong>{{ a.user_name or ('User #' + a.user_id|string) }}</strong>
+                    {% if a.user_email %}<br><span style="color:var(--text-muted);font-size:0.75rem">{{ a.user_email }}</span>{% endif %}
+                </td>
+                <td><span class="badge badge-blue">{{ a.subject_code }}</span></td>
+                <td>Unit {{ a.unit_number }}</td>
+                <td>
+                    <span class="badge {{ 'badge-green' if a.score >= 75 else 'badge-yellow' if a.score >= 50 else 'badge-red' }}">
+                        {{ a.score|round|int }}%
+                    </span>
+                </td>
+                <td style="color:var(--text-muted);font-size:0.8rem">{{ a.submitted_at[:10] if a.submitted_at else '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);margin-top:12px">No quiz attempts yet. Students haven't taken any exams.</p>
+    {% endif %}
+</div>
+
+<!-- Per-Student Progress -->
+{% if students_with_attempts %}
+<div class="card" style="margin-top:16px">
+    <h3>👥 Per-Student Progress</h3>
+    <div style="margin-top:12px">
+        {% for student in students_with_attempts %}
+        <div style="padding:12px;border-bottom:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <div>
+                    <strong>{{ student.name }}</strong>
+                    <span style="color:var(--text-muted);font-size:0.8rem;margin-left:8px">{{ student.email }}</span>
+                </div>
+                <div style="display:flex;gap:12px;align-items:center">
+                    <span style="font-size:0.8rem;color:var(--text-muted)">{{ student.attempt_count }} attempts</span>
+                    <span class="badge {{ 'badge-green' if student.avg_score >= 75 else 'badge-yellow' if student.avg_score >= 50 else 'badge-red' }}">
+                        Avg: {{ student.avg_score }}%
+                    </span>
+                </div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill {{ 'green' if student.avg_score >= 75 else 'yellow' if student.avg_score >= 50 else 'red' }}" style="width:{{ student.avg_score }}%"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}

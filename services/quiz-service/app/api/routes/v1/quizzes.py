@@ -73,6 +73,40 @@ async def get_quiz_history(
         {
             "id": a.id,
             "quiz_id": a.quiz_id,
+            "user_id": a.user_id,
+            "subject_code": a.quiz.subject_code if a.quiz else "—",
+            "unit_number": a.quiz.unit_number if a.quiz else 0,
+            "score": round(a.score, 1),
+            "submitted_at": a.submitted_at.isoformat() if a.submitted_at else None,
+        }
+        for a in attempts
+    ]
+
+
+@router.get("/history/all")
+async def get_all_quiz_history(
+    x_user_role: str = Header("student", alias="X-User-Role"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: get ALL students' quiz attempt history."""
+    if x_user_role != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    from app.models import QuizAttempt
+    from sqlalchemy.orm import selectinload
+
+    result = await db.execute(
+        select(QuizAttempt)
+        .options(selectinload(QuizAttempt.quiz))
+        .order_by(QuizAttempt.submitted_at.desc())
+        .limit(500)
+    )
+    attempts = result.scalars().all()
+    return [
+        {
+            "id": a.id,
+            "quiz_id": a.quiz_id,
+            "user_id": a.user_id,
             "subject_code": a.quiz.subject_code if a.quiz else "—",
             "unit_number": a.quiz.unit_number if a.quiz else 0,
             "score": round(a.score, 1),

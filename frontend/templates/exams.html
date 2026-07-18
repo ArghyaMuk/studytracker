@@ -2,7 +2,7 @@
 {% block title %}Exam Schedule{% endblock %}
 {% block content %}
 <h1>Exam Schedule</h1>
-<p style="color:var(--text-muted);margin-bottom:24px">Upcoming exams scheduled by your admin</p>
+<p style="color:var(--text-muted);margin-bottom:24px">Upcoming exams — click "Start Exam" to attend online exams</p>
 
 {% if exams %}
 <div class="stats-grid" style="margin-bottom:24px">
@@ -11,37 +11,45 @@
         <div class="value">{{ exams|length }}</div>
     </div>
     <div class="stat-card">
-        <div class="label">Subjects</div>
-        <div class="value">{{ exams|map(attribute='subject_code')|unique|list|length }}</div>
+        <div class="label">Online Exams</div>
+        <div class="value">{{ exams|selectattr('quiz_id')|list|length }}</div>
     </div>
 </div>
 
 {% for exam in exams %}
-<div class="card" style="display:flex;justify-content:space-between;align-items:center">
-    <div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span class="badge badge-blue">{{ exam.subject_code }}</span>
-            {% if exam.subject_name %}
-            <strong>{{ exam.subject_name }}</strong>
+<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span class="badge badge-blue">{{ exam.subject_code }}</span>
+                {% if exam.subject_name %}
+                <strong>{{ exam.subject_name }}</strong>
+                {% endif %}
+                <span class="badge {{ 'badge-red' if exam.exam_type == 'external' else 'badge-yellow' if exam.exam_type == 'internal' else 'badge-green' if exam.exam_type == 'lab_viva' else 'badge-blue' }}">
+                    {{ exam.exam_type | replace('_', ' ') | title }}
+                </span>
+                {% if exam.quiz_id %}
+                <span class="badge badge-green">Online</span>
+                {% endif %}
+            </div>
+            <div style="color:var(--text-muted);font-size:0.85rem">
+                📅 {{ exam.exam_date }}
+                {% if exam.exam_time %} • ⏰ {{ exam.exam_time }}{% endif %}
+                {% if exam.duration_minutes %} • {{ exam.duration_minutes }} min{% endif %}
+                {% if exam.venue %} • 📍 {{ exam.venue }}{% endif %}
+            </div>
+            {% if exam.notes %}
+            <div style="color:var(--text-muted);font-size:0.8rem;margin-top:4px">📝 {{ exam.notes }}</div>
             {% endif %}
-            <span class="badge {{ 'badge-red' if exam.exam_type == 'external' else 'badge-yellow' if exam.exam_type == 'internal' else 'badge-green' if exam.exam_type == 'lab_viva' else 'badge-blue' }}">
-                {{ exam.exam_type | replace('_', ' ') | title }}
-            </span>
         </div>
-        <div style="color:var(--text-muted);font-size:0.85rem">
-            📅 {{ exam.exam_date }}
-            {% if exam.exam_time %} • ⏰ {{ exam.exam_time }}{% endif %}
-            {% if exam.duration_minutes %} • {{ exam.duration_minutes }} min{% endif %}
-            {% if exam.venue %} • 📍 {{ exam.venue }}{% endif %}
-        </div>
-        {% if exam.notes %}
-        <div style="color:var(--text-muted);font-size:0.8rem;margin-top:4px">📝 {{ exam.notes }}</div>
-        {% endif %}
-    </div>
-    <div style="text-align:right">
-        <div style="font-size:1.5rem;font-weight:700;color:var(--primary)">
-            {% set days_left = (exam.exam_date | string)[:10] %}
-            {{ days_left }}
+        <div>
+            {% if exam.quiz_id %}
+            <a href="{{ url_for('take_quiz', quiz_id=exam.quiz_id) }}" class="btn btn-success">
+                ✍️ Start Exam
+            </a>
+            {% else %}
+            <span style="color:var(--text-muted);font-size:0.8rem">Offline exam</span>
+            {% endif %}
         </div>
     </div>
 </div>

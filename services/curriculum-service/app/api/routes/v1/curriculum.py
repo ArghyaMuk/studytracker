@@ -151,7 +151,7 @@ async def delete_material(
 ):
     """Admin: delete a study material."""
     from app.models import StudyMaterial
-    from sqlalchemy import select, delete as sql_delete
+    from sqlalchemy import select
 
     result = await db.execute(select(StudyMaterial).where(StudyMaterial.id == material_id))
     mat = result.scalar_one_or_none()
@@ -188,6 +188,7 @@ async def list_exams(
             "duration_minutes": e.duration_minutes,
             "venue": e.venue,
             "notes": e.notes,
+            "quiz_id": e.quiz_id,
             "created_at": e.created_at,
         }
         for e in exams
@@ -216,6 +217,7 @@ async def create_exam(
         duration_minutes=data.get("duration_minutes"),
         venue=data.get("venue", ""),
         notes=data.get("notes", ""),
+        quiz_id=data.get("quiz_id"),
         created_at=datetime.now().isoformat()[:19],
     )
     db.add(exam)

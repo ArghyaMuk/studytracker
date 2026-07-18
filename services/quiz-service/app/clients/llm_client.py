@@ -66,7 +66,7 @@ class LLMClient(QuizGeneratorInterface):
             except Exception as e:
                 error_msg = str(e)
                 if "429" in error_msg or "quota" in error_msg.lower():
-                    logger.warning(f"Gemini quota exceeded, trying OpenRouter fallback...")
+                    logger.warning("Gemini quota exceeded, trying OpenRouter fallback...")
                 else:
                     logger.error(f"Gemini error: {e}")
 
@@ -113,7 +113,7 @@ class LLMClient(QuizGeneratorInterface):
             except Exception as e:
                 error_msg = str(e)
                 if "429" in error_msg or "quota" in error_msg.lower():
-                    logger.warning(f"Gemini quota exceeded, trying OpenRouter fallback...")
+                    logger.warning("Gemini quota exceeded, trying OpenRouter fallback...")
                 else:
                     logger.error(f"Gemini error: {e}")
 

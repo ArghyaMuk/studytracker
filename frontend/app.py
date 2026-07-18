@@ -3,7 +3,7 @@ import json
 import base64
 import requests
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -437,7 +437,8 @@ def admin_students():
 @admin_required
 def admin_exams():
     exams = api_get("/exams") or []
-    return render_template("admin_exams.html", exams=exams)
+    quizzes = api_get("/quizzes/available") or []
+    return render_template("admin_exams.html", exams=exams, quizzes=quizzes)
 
 
 @app.route("/admin/exams/add", methods=["POST"])
@@ -453,6 +454,7 @@ def add_exam():
         "duration_minutes": int(request.form["duration_minutes"]) if request.form.get("duration_minutes") else None,
         "venue": request.form.get("venue", ""),
         "notes": request.form.get("notes", ""),
+        "quiz_id": int(request.form["quiz_id"]) if request.form.get("quiz_id") else None,
     }
     status_code, resp = api_post("/admin/exams", data)
     if status_code == 201:

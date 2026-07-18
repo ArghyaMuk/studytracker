@@ -2,7 +2,6 @@
 
 import json
 
-import pytest
 
 from app.services.score_calculator import ReadinessCalculator, SignalData
 

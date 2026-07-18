@@ -1,8 +1,8 @@
 """Unit tests for the simple spaced repetition algorithm."""
 
-from datetime import date, timedelta
+from datetime import date
 
-from app.services.sm2_algorithm import SM2Result, compute_sm2
+from app.services.sm2_algorithm import compute_sm2
 
 
 class TestSpacedRepetition:

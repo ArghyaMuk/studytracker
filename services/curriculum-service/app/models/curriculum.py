@@ -78,4 +78,5 @@ class ExamSchedule(Base):
     duration_minutes = Column(Integer, nullable=True)
     venue = Column(String(200), nullable=True)
     notes = Column(Text, nullable=True)
+    quiz_id = Column(Integer, nullable=True)  # Linked quiz for online exam
     created_at = Column(String(30), nullable=True)

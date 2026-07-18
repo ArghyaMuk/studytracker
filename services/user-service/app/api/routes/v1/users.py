@@ -3,7 +3,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.models import User, UserProfile
+from app.models import User
 from app.repositories import UserRepository
 from app.schemas import (
     ExamTargetRequest,

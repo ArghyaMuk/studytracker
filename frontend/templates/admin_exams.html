@@ -56,6 +56,16 @@
                 <input type="text" name="notes" placeholder="e.g. Bring calculator">
             </div>
         </div>
+        <div class="form-group">
+            <label>Assign Quiz (for online exam)</label>
+            <select name="quiz_id">
+                <option value="">— No quiz (offline exam) —</option>
+                {% for q in quizzes %}
+                <option value="{{ q.id }}">{{ q.subject_code }} Unit {{ q.unit_number }} ({{ q.question_count }}Q, {{ q.mode|upper }})</option>
+                {% endfor %}
+            </select>
+            <p style="font-size:0.75rem;color:var(--text-muted);margin-top:4px">If assigned, students can take the quiz as their exam from the Exam Schedule page.</p>
+        </div>
         <button type="submit" class="btn btn-primary">Schedule Exam</button>
     </form>
 </div>
@@ -72,7 +82,7 @@
                 <th>Date</th>
                 <th>Time</th>
                 <th>Duration</th>
-                <th>Venue</th>
+                <th>Quiz</th>
                 <th>Action</th>
             </tr>
         </thead>
@@ -91,7 +101,13 @@
                 <td>{{ exam.exam_date }}</td>
                 <td>{{ exam.exam_time or '—' }}</td>
                 <td>{{ (exam.duration_minutes | string) + ' min' if exam.duration_minutes else '—' }}</td>
-                <td>{{ exam.venue or '—' }}</td>
+                <td>
+                    {% if exam.quiz_id %}
+                    <span class="badge badge-green">Quiz #{{ exam.quiz_id }}</span>
+                    {% else %}
+                    <span style="color:var(--text-muted)">Offline</span>
+                    {% endif %}
+                </td>
                 <td>
                     <form method="POST" action="{{ url_for('delete_exam', exam_id=exam.id) }}" style="display:inline">
                         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this exam?')">Delete</button>

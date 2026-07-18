@@ -1,8 +1,6 @@
 from shared.auth import (
     create_access_token,
     create_refresh_token,
-    hash_password,
-    verify_password,
     verify_token,
 )
 from .config import settings

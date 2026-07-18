@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Admin - Exam Schedule{% endblock %}
+{% block content %}
+<h1>Exam Schedule</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">
+    Schedule exams for subjects •
+    <a href="{{ url_for('admin_page') }}" style="color:var(--primary);text-decoration:none">← Back to Admin</a>
+</p>
+
+<!-- Add Exam Form -->
+<div class="card">
+    <h3>📅 Schedule New Exam</h3>
+    <form method="POST" action="{{ url_for('add_exam') }}" style="margin-top:12px">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Subject Code</label>
+                <input type="text" name="subject_code" required placeholder="e.g. MCA201">
+            </div>
+            <div class="form-group">
+                <label>Subject Name</label>
+                <input type="text" name="subject_name" placeholder="e.g. Python Programming">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Exam Type</label>
+                <select name="exam_type" required>
+                    <option value="internal">Internal (Sessional)</option>
+                    <option value="external">External (Semester End)</option>
+                    <option value="lab_viva">Lab Viva</option>
+                    <option value="assignment">Assignment</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Exam Date</label>
+                <input type="date" name="exam_date" required>
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Time (optional)</label>
+                <input type="time" name="exam_time">
+            </div>
+            <div class="form-group">
+                <label>Duration (minutes)</label>
+                <input type="number" name="duration_minutes" min="15" placeholder="e.g. 90">
+            </div>
+        </div>
+        <div class="form-row">
+            <div class="form-group">
+                <label>Venue (optional)</label>
+                <input type="text" name="venue" placeholder="e.g. Room 301, Block A">
+            </div>
+            <div class="form-group">
+                <label>Notes (optional)</label>
+                <input type="text" name="notes" placeholder="e.g. Bring calculator">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Schedule Exam</button>
+    </form>
+</div>
+
+<!-- Scheduled Exams List -->
+<div class="card" style="margin-top:16px">
+    <h3>Scheduled Exams ({{ exams|length }})</h3>
+    {% if exams %}
+    <table style="margin-top:12px">
+        <thead>
+            <tr>
+                <th>Subject</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Duration</th>
+                <th>Venue</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exam in exams %}
+            <tr>
+                <td>
+                    <strong>{{ exam.subject_code }}</strong>
+                    {% if exam.subject_name %}<br><span style="color:var(--text-muted);font-size:0.8rem">{{ exam.subject_name }}</span>{% endif %}
+                </td>
+                <td>
+                    <span class="badge {{ 'badge-red' if exam.exam_type == 'external' else 'badge-yellow' if exam.exam_type == 'internal' else 'badge-green' if exam.exam_type == 'lab_viva' else 'badge-blue' }}">
+                        {{ exam.exam_type | replace('_', ' ') | title }}
+                    </span>
+                </td>
+                <td>{{ exam.exam_date }}</td>
+                <td>{{ exam.exam_time or '—' }}</td>
+                <td>{{ (exam.duration_minutes | string) + ' min' if exam.duration_minutes else '—' }}</td>
+                <td>{{ exam.venue or '—' }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('delete_exam', exam_id=exam.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this exam?')">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);margin-top:12px">No exams scheduled yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

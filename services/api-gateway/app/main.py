@@ -29,6 +29,8 @@ ROUTE_MAP = {
     "/api/v1/programs": settings.curriculum_service_url,
     "/api/v1/subjects": settings.curriculum_service_url,
     "/api/v1/materials": settings.curriculum_service_url,
+    "/api/v1/exams": settings.curriculum_service_url,
+    "/api/v1/admin/exams": settings.curriculum_service_url,
     "/api/v1/admin/materials": settings.curriculum_service_url,
     "/api/v1/admin/programs": settings.curriculum_service_url,
     "/api/v1/admin/quizzes": settings.quiz_service_url,

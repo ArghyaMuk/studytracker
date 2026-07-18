@@ -64,3 +64,18 @@ class StudyMaterial(Base):
     url = Column(Text, nullable=False)  # YouTube URL, PDF path, or external link
     description = Column(Text, nullable=True)
     created_at = Column(String(30), nullable=True)
+
+
+class ExamSchedule(Base):
+    __tablename__ = "exam_schedules"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    subject_code = Column(String(50), nullable=False, index=True)
+    subject_name = Column(String(200), nullable=True)
+    exam_type = Column(Enum("internal", "external", "lab_viva", "assignment", name="exam_schedule_type_enum"), nullable=False)
+    exam_date = Column(String(20), nullable=False)  # YYYY-MM-DD
+    exam_time = Column(String(10), nullable=True)   # HH:MM
+    duration_minutes = Column(Integer, nullable=True)
+    venue = Column(String(200), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(String(30), nullable=True)

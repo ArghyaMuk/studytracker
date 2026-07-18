@@ -159,3 +159,84 @@ async def delete_material(
         raise HTTPException(status_code=404, detail="Material not found")
     await db.delete(mat)
     await db.commit()
+
+
+# ── Exam Schedule ──
+
+@router.get("/exams")
+async def list_exams(
+    subject_code: str = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """List all scheduled exams, optionally filtered by subject."""
+    from app.models import ExamSchedule
+    from sqlalchemy import select
+
+    query = select(ExamSchedule).order_by(ExamSchedule.exam_date.asc())
+    if subject_code:
+        query = query.where(ExamSchedule.subject_code == subject_code)
+    result = await db.execute(query)
+    exams = result.scalars().all()
+    return [
+        {
+            "id": e.id,
+            "subject_code": e.subject_code,
+            "subject_name": e.subject_name,
+            "exam_type": e.exam_type,
+            "exam_date": e.exam_date,
+            "exam_time": e.exam_time,
+            "duration_minutes": e.duration_minutes,
+            "venue": e.venue,
+            "notes": e.notes,
+            "created_at": e.created_at,
+        }
+        for e in exams
+    ]
+
+
+@router.post("/admin/exams", status_code=201)
+async def create_exam(
+    data: dict,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: schedule an exam for a subject."""
+    from app.models import ExamSchedule
+    from datetime import datetime
+
+    if not data.get("subject_code") or not data.get("exam_type") or not data.get("exam_date"):
+        raise HTTPException(status_code=422, detail="subject_code, exam_type, and exam_date are required")
+
+    exam = ExamSchedule(
+        subject_code=data["subject_code"],
+        subject_name=data.get("subject_name", ""),
+        exam_type=data["exam_type"],
+        exam_date=data["exam_date"],
+        exam_time=data.get("exam_time"),
+        duration_minutes=data.get("duration_minutes"),
+        venue=data.get("venue", ""),
+        notes=data.get("notes", ""),
+        created_at=datetime.now().isoformat()[:19],
+    )
+    db.add(exam)
+    await db.commit()
+    await db.refresh(exam)
+    return {"id": exam.id, "subject_code": exam.subject_code, "exam_date": exam.exam_date}
+
+
+@router.delete("/admin/exams/{exam_id}", status_code=204)
+async def delete_exam(
+    exam_id: int,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: delete a scheduled exam."""
+    from app.models import ExamSchedule
+    from sqlalchemy import select
+
+    result = await db.execute(select(ExamSchedule).where(ExamSchedule.id == exam_id))
+    exam = result.scalar_one_or_none()
+    if not exam:
+        raise HTTPException(status_code=404, detail="Exam not found")
+    await db.delete(exam)
+    await db.commit()

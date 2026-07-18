@@ -322,6 +322,13 @@ def submit_quiz(quiz_id):
 
 # ── Revision ──
 
+@app.route("/exams")
+@login_required
+def exams_page():
+    exams = api_get("/exams") or []
+    return render_template("exams.html", exams=exams)
+
+
 @app.route("/revision")
 @login_required
 def revision_page():
@@ -423,6 +430,48 @@ def admin_students():
                            users=user_data.get("users", []),
                            total_users=user_data.get("total_users", 0),
                            recent_count=recent_count)
+
+
+@app.route("/admin/exams")
+@login_required
+@admin_required
+def admin_exams():
+    exams = api_get("/exams") or []
+    return render_template("admin_exams.html", exams=exams)
+
+
+@app.route("/admin/exams/add", methods=["POST"])
+@login_required
+@admin_required
+def add_exam():
+    data = {
+        "subject_code": request.form["subject_code"],
+        "subject_name": request.form.get("subject_name", ""),
+        "exam_type": request.form["exam_type"],
+        "exam_date": request.form["exam_date"],
+        "exam_time": request.form.get("exam_time", ""),
+        "duration_minutes": int(request.form["duration_minutes"]) if request.form.get("duration_minutes") else None,
+        "venue": request.form.get("venue", ""),
+        "notes": request.form.get("notes", ""),
+    }
+    status_code, resp = api_post("/admin/exams", data)
+    if status_code == 201:
+        flash(f"Exam scheduled for {data['subject_code']} on {data['exam_date']}!", "success")
+    else:
+        flash(resp.get("detail", "Failed to schedule exam"), "error")
+    return redirect(url_for("admin_exams"))
+
+
+@app.route("/admin/exams/<int:exam_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_exam(exam_id):
+    status_code = api_delete(f"/admin/exams/{exam_id}")
+    if status_code == 204:
+        flash("Exam deleted", "success")
+    else:
+        flash("Failed to delete", "error")
+    return redirect(url_for("admin_exams"))
 
 
 @app.route("/admin/programs/add", methods=["POST"])

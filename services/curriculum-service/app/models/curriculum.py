@@ -80,3 +80,14 @@ class ExamSchedule(Base):
     notes = Column(Text, nullable=True)
     quiz_id = Column(Integer, nullable=True)  # Linked quiz for online exam
     created_at = Column(String(30), nullable=True)
+
+
+class StudentEnrollment(Base):
+    __tablename__ = "student_enrollments"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    user_email = Column(String(255), nullable=True)
+    subject_code = Column(String(50), nullable=False, index=True)
+    subject_name = Column(String(200), nullable=True)
+    enrolled_at = Column(String(30), nullable=True)

@@ -242,3 +242,90 @@ async def delete_exam(
         raise HTTPException(status_code=404, detail="Exam not found")
     await db.delete(exam)
     await db.commit()
+
+
+# ── Student Enrollment ──
+
+@router.get("/enrollments")
+async def list_enrollments(
+    user_id: int = None,
+    subject_code: str = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """List enrollments, filtered by user_id or subject_code."""
+    from app.models import StudentEnrollment
+    from sqlalchemy import select
+
+    query = select(StudentEnrollment)
+    if user_id:
+        query = query.where(StudentEnrollment.user_id == user_id)
+    if subject_code:
+        query = query.where(StudentEnrollment.subject_code == subject_code)
+    result = await db.execute(query)
+    enrollments = result.scalars().all()
+    return [
+        {
+            "id": e.id,
+            "user_id": e.user_id,
+            "user_email": e.user_email,
+            "subject_code": e.subject_code,
+            "subject_name": e.subject_name,
+            "enrolled_at": e.enrolled_at,
+        }
+        for e in enrollments
+    ]
+
+
+@router.post("/admin/enrollments", status_code=201)
+async def enroll_student(
+    data: dict,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: enroll a student in a subject."""
+    from app.models import StudentEnrollment
+    from datetime import datetime
+    from sqlalchemy import select
+
+    if not data.get("user_id") or not data.get("subject_code"):
+        raise HTTPException(status_code=422, detail="user_id and subject_code are required")
+
+    # Check if already enrolled
+    existing = await db.execute(
+        select(StudentEnrollment).where(
+            StudentEnrollment.user_id == data["user_id"],
+            StudentEnrollment.subject_code == data["subject_code"],
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Student already enrolled in this subject")
+
+    enrollment = StudentEnrollment(
+        user_id=data["user_id"],
+        user_email=data.get("user_email", ""),
+        subject_code=data["subject_code"],
+        subject_name=data.get("subject_name", ""),
+        enrolled_at=datetime.now().isoformat()[:19],
+    )
+    db.add(enrollment)
+    await db.commit()
+    await db.refresh(enrollment)
+    return {"id": enrollment.id, "user_id": enrollment.user_id, "subject_code": enrollment.subject_code}
+
+
+@router.delete("/admin/enrollments/{enrollment_id}", status_code=204)
+async def remove_enrollment(
+    enrollment_id: int,
+    _: str = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: remove a student from a subject."""
+    from app.models import StudentEnrollment
+    from sqlalchemy import select
+
+    result = await db.execute(select(StudentEnrollment).where(StudentEnrollment.id == enrollment_id))
+    enrollment = result.scalar_one_or_none()
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Enrollment not found")
+    await db.delete(enrollment)
+    await db.commit()

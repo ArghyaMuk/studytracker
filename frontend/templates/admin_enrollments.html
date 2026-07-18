@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Admin - Course Enrollment{% endblock %}
+{% block content %}
+<h1>Course Enrollment</h1>
+<p style="color:var(--text-muted);margin-bottom:24px">
+    Assign subjects to individual students •
+    <a href="{{ url_for('admin_page') }}" style="color:var(--primary);text-decoration:none">← Back to Admin</a>
+</p>
+
+<!-- Enroll Student Form -->
+<div class="card">
+    <h3>➕ Enroll Student in a Course</h3>
+    <form method="POST" action="{{ url_for('add_enrollment') }}" style="margin-top:12px">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Student</label>
+                <select name="user_id" required onchange="updateEmail(this)">
+                    <option value="">— Select Student —</option>
+                    {% for s in students %}
+                    {% if s.email != 'admin@studypilot.com' %}
+                    <option value="{{ s.id }}" data-email="{{ s.email }}">{{ s.name }} ({{ s.email }})</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="user_email" id="user_email_field">
+            </div>
+            <div class="form-group">
+                <label>Subject</label>
+                <select name="subject_code" required onchange="updateSubjectName(this)">
+                    <option value="">— Select Subject —</option>
+                    {% for s in subjects %}
+                    <option value="{{ s.code }}" data-name="{{ s.name }}">{{ s.code }} - {{ s.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="subject_name" id="subject_name_field">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Enroll Student</button>
+    </form>
+</div>
+
+<!-- Current Enrollments -->
+<div class="card" style="margin-top:16px">
+    <h3>Current Enrollments ({{ enrollments|length }})</h3>
+    {% if enrollments %}
+    <table style="margin-top:12px">
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Email</th>
+                <th>Subject</th>
+                <th>Enrolled</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in enrollments %}
+            <tr>
+                <td>{{ e.user_email or ('User #' + e.user_id|string) }}</td>
+                <td style="color:var(--text-muted)">{{ e.user_email or '—' }}</td>
+                <td>
+                    <span class="badge badge-blue">{{ e.subject_code }}</span>
+                    {% if e.subject_name %}{{ e.subject_name }}{% endif %}
+                </td>
+                <td style="color:var(--text-muted);font-size:0.8rem">{{ e.enrolled_at[:10] if e.enrolled_at else '—' }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('delete_enrollment', enrollment_id=e.id) }}" style="display:inline">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Remove this enrollment?')">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted);margin-top:12px">No enrollments yet. Assign subjects to students above.</p>
+    {% endif %}
+</div>
+
+<script>
+function updateEmail(select) {
+    const option = select.options[select.selectedIndex];
+    document.getElementById('user_email_field').value = option.dataset.email || '';
+}
+function updateSubjectName(select) {
+    const option = select.options[select.selectedIndex];
+    document.getElementById('subject_name_field').value = option.dataset.name || '';
+}
+</script>
+{% endblock %}

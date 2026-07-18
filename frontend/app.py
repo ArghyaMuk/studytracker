@@ -441,6 +441,57 @@ def admin_exams():
     return render_template("admin_exams.html", exams=exams, quizzes=quizzes)
 
 
+@app.route("/admin/enrollments")
+@login_required
+@admin_required
+def admin_enrollments():
+    enrollments = api_get("/enrollments") or []
+    students = (api_get("/users/admin/all") or {}).get("users", [])
+    # Get subjects from all programs
+    programs = api_get("/programs") or []
+    all_subjects = []
+    for prog in programs:
+        for sem in range(1, prog.get("total_semesters", 8) + 1):
+            subjects = api_get(f"/programs/{prog['id']}/semesters/{sem}/subjects") or []
+            for s in subjects:
+                if not any(x["code"] == s["code"] for x in all_subjects):
+                    all_subjects.append({"code": s["code"], "name": s["name"]})
+    return render_template("admin_enrollments.html",
+                           enrollments=enrollments,
+                           students=students,
+                           subjects=all_subjects)
+
+
+@app.route("/admin/enrollments/add", methods=["POST"])
+@login_required
+@admin_required
+def add_enrollment():
+    data = {
+        "user_id": int(request.form["user_id"]),
+        "user_email": request.form.get("user_email", ""),
+        "subject_code": request.form["subject_code"],
+        "subject_name": request.form.get("subject_name", ""),
+    }
+    status_code, resp = api_post("/admin/enrollments", data)
+    if status_code == 201:
+        flash(f"Student enrolled in {data['subject_code']}!", "success")
+    else:
+        flash(resp.get("detail", "Failed to enroll"), "error")
+    return redirect(url_for("admin_enrollments"))
+
+
+@app.route("/admin/enrollments/<int:enrollment_id>/delete", methods=["POST"])
+@login_required
+@admin_required
+def delete_enrollment(enrollment_id):
+    status_code = api_delete(f"/admin/enrollments/{enrollment_id}")
+    if status_code == 204:
+        flash("Enrollment removed", "success")
+    else:
+        flash("Failed to remove", "error")
+    return redirect(url_for("admin_enrollments"))
+
+
 @app.route("/admin/exams/add", methods=["POST"])
 @login_required
 @admin_required

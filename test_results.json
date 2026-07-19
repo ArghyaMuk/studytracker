@@ -1,0 +1,285 @@
+{
+  "timestamp": "2026-07-19T23:58:40.862696",
+  "passed": 42,
+  "failed": 4,
+  "total": 46,
+  "pass_rate": "91%",
+  "tests": [
+    {
+      "test": "API Gateway health",
+      "status": "PASS",
+      "detail": "status=healthy",
+      "duration_ms": 83
+    },
+    {
+      "test": "Service: user-service",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 0
+    },
+    {
+      "test": "Service: curriculum-service",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 0
+    },
+    {
+      "test": "Service: session-service",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 0
+    },
+    {
+      "test": "Service: repetition-service",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 0
+    },
+    {
+      "test": "Service: quiz-service",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 0
+    },
+    {
+      "test": "Service: readiness-service",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 0
+    },
+    {
+      "test": "Service: notification-service",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 0
+    },
+    {
+      "test": "Admin login",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 399
+    },
+    {
+      "test": "Invalid login rejected",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 465
+    },
+    {
+      "test": "Student registration",
+      "status": "PASS",
+      "detail": "email=test_1784485713@test.com",
+      "duration_ms": 480
+    },
+    {
+      "test": "Duplicate email rejected",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 46
+    },
+    {
+      "test": "Token refresh",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 25
+    },
+    {
+      "test": "Student blocked from admin/programs",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 45
+    },
+    {
+      "test": "Student blocked from user list",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 46
+    },
+    {
+      "test": "Student blocked from quiz creation",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 34
+    },
+    {
+      "test": "No auth returns 401",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 6
+    },
+    {
+      "test": "Admin can list users",
+      "status": "PASS",
+      "detail": "users=8",
+      "duration_ms": 32
+    },
+    {
+      "test": "Create program",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 70
+    },
+    {
+      "test": "Create subject",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 85
+    },
+    {
+      "test": "List subjects",
+      "status": "PASS",
+      "detail": "count=1",
+      "duration_ms": 56
+    },
+    {
+      "test": "Delete program cascade",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 89
+    },
+    {
+      "test": "Admin creates manual quiz",
+      "status": "PASS",
+      "detail": "id=30",
+      "duration_ms": 72
+    },
+    {
+      "test": "List available quizzes",
+      "status": "PASS",
+      "detail": "count=2",
+      "duration_ms": 35
+    },
+    {
+      "test": "New quiz appears in list",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 0
+    },
+    {
+      "test": "Get quiz with questions",
+      "status": "PASS",
+      "detail": "questions=2",
+      "duration_ms": 40
+    },
+    {
+      "test": "Submit quiz",
+      "status": "PASS",
+      "detail": "score=100.0%",
+      "duration_ms": 79
+    },
+    {
+      "test": "Score is 100%",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 0
+    },
+    {
+      "test": "Quiz history endpoint",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 32
+    },
+    {
+      "test": "Admin deletes quiz",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 55
+    },
+    {
+      "test": "Schedule exam",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 46
+    },
+    {
+      "test": "List exams",
+      "status": "PASS",
+      "detail": "count=2",
+      "duration_ms": 48
+    },
+    {
+      "test": "Delete exam",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 42
+    },
+    {
+      "test": "Add study material",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 48
+    },
+    {
+      "test": "List materials",
+      "status": "PASS",
+      "detail": "count=1",
+      "duration_ms": 29
+    },
+    {
+      "test": "Delete material",
+      "status": "PASS",
+      "detail": "",
+      "duration_ms": 62
+    },
+    {
+      "test": "Perf: /programs (10 reqs)",
+      "status": "PASS",
+      "detail": "avg=43ms p95=78ms",
+      "duration_ms": 43
+    },
+    {
+      "test": "Perf: /quizzes/available (10 reqs)",
+      "status": "PASS",
+      "detail": "avg=45ms p95=81ms",
+      "duration_ms": 45
+    },
+    {
+      "test": "Perf: /exams (10 reqs)",
+      "status": "PASS",
+      "detail": "avg=43ms p95=50ms",
+      "duration_ms": 43
+    },
+    {
+      "test": "Perf: /materials (10 reqs)",
+      "status": "PASS",
+      "detail": "avg=40ms p95=61ms",
+      "duration_ms": 40
+    },
+    {
+      "test": "Load: 50 concurrent (20 threads)",
+      "status": "PASS",
+      "detail": "success=47/50, avg=513ms, total=1652ms",
+      "duration_ms": 1652
+    },
+    {
+      "test": "Throughput: 100 sequential requests",
+      "status": "FAIL",
+      "detail": "success=0/100, 71 req/s, total=1s",
+      "duration_ms": 1398
+    },
+    {
+      "test": "Rate limiting triggers",
+      "status": "PASS",
+      "detail": "triggered at request #1",
+      "duration_ms": 0
+    },
+    {
+      "test": "Get today's revision",
+      "status": "FAIL",
+      "detail": "items=1",
+      "duration_ms": 7
+    },
+    {
+      "test": "Get upcoming revision",
+      "status": "FAIL",
+      "detail": "items=1",
+      "duration_ms": 6
+    },
+    {
+      "test": "Get readiness scores",
+      "status": "FAIL",
+      "detail": "status=429",
+      "duration_ms": 7
+    }
+  ]
+}

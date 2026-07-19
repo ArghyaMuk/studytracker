@@ -44,7 +44,7 @@ class UserService:
         )
         await self.repo.create_profile(profile)
 
-        return create_tokens(user.id, user.email)
+        return create_tokens(user.id, user.email, user.role or "student")
 
     async def login(self, data: UserLoginRequest) -> dict:
         user = await self.repo.get_by_email(data.email)
@@ -53,7 +53,7 @@ class UserService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials",
             )
-        return create_tokens(user.id, user.email)
+        return create_tokens(user.id, user.email, user.role or "student")
 
     async def refresh_token(self, data: TokenRefreshRequest) -> dict:
         payload = decode_token(data.refresh_token)
@@ -64,7 +64,8 @@ class UserService:
             )
         user_id = int(payload["sub"])
         email = payload["email"]
-        return create_tokens(user_id, email)
+        role = payload.get("role", "student")
+        return create_tokens(user_id, email, role)
 
     async def get_user(self, user_id: int) -> User:
         user = await self.repo.get_by_id(user_id)

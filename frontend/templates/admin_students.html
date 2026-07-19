@@ -3,7 +3,7 @@
 {% block content %}
 <h1>Student Management</h1>
 <p style="color:var(--text-muted);margin-bottom:24px">
-    {{ total_users }} registered students •
+    {{ total_users }} registered users •
     <a href="{{ url_for('admin_page') }}" style="color:var(--primary);text-decoration:none">← Back to Admin</a>
 </p>
 
@@ -16,23 +16,54 @@
         <div class="label">This Week</div>
         <div class="value">{{ recent_count }}</div>
     </div>
+    <div class="stat-card">
+        <div class="label">Admins</div>
+        <div class="value">{{ users|selectattr('role', 'equalto', 'admin')|list|length }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="label">Students</div>
+        <div class="value">{{ users|rejectattr('role', 'equalto', 'admin')|list|length }}</div>
+    </div>
 </div>
 
 <div class="card">
-    <h3>All Students</h3>
+    <h3>All Users</h3>
     <table style="margin-top:12px">
         <thead>
-            <tr><th>#</th><th>Name</th><th>Email</th><th>College</th><th>Semester</th><th>Joined</th></tr>
+            <tr><th>#</th><th>Name</th><th>Email</th><th>College</th><th>Role</th><th>Joined</th><th>Action</th></tr>
         </thead>
         <tbody>
             {% for u in users %}
             <tr>
                 <td>{{ u.id }}</td>
-                <td>{{ u.name }}</td>
+                <td><strong>{{ u.name }}</strong></td>
                 <td>{{ u.email }}</td>
                 <td>{{ u.college or '—' }}</td>
-                <td>{{ u.current_semester or '—' }}</td>
-                <td>{{ u.created_at[:10] if u.created_at else '—' }}</td>
+                <td>
+                    <span class="badge {{ 'badge-red' if u.role == 'admin' else 'badge-blue' }}">
+                        {{ u.role or 'student' }}
+                    </span>
+                </td>
+                <td style="color:var(--text-muted);font-size:0.8rem">{{ u.created_at[:10] if u.created_at else '—' }}</td>
+                <td>
+                    {% if u.email != session.get('email') %}
+                    <form method="POST" action="{{ url_for('change_user_role', user_id=u.id) }}" style="display:inline">
+                        {% if u.role == 'admin' %}
+                        <input type="hidden" name="role" value="student">
+                        <button type="submit" class="btn btn-secondary btn-sm" onclick="return confirm('Demote {{ u.name }} to student?')">
+                            Demote
+                        </button>
+                        {% else %}
+                        <input type="hidden" name="role" value="admin">
+                        <button type="submit" class="btn btn-purple btn-sm" onclick="return confirm('Promote {{ u.name }} to admin?')">
+                            Make Admin
+                        </button>
+                        {% endif %}
+                    </form>
+                    {% else %}
+                    <span style="color:var(--text-muted);font-size:0.75rem">You</span>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>

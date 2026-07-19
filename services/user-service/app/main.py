@@ -31,6 +31,7 @@ async def lifespan(app: FastAPI):
                 college="StudyPilot",
                 university="StudyPilot",
                 current_semester=1,
+                role="admin",
             )
             admin_user = await repo.create(admin_user)
             await repo.create_profile(UserProfile(

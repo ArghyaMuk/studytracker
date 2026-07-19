@@ -29,7 +29,7 @@ async def list_all_users(
     if x_user_role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     result = await db.execute(
-        select(User.id, User.name, User.email, User.college, User.current_semester, User.created_at)
+        select(User.id, User.name, User.email, User.college, User.current_semester, User.role, User.created_at)
         .order_by(User.created_at.desc())
     )
     users = [
@@ -39,6 +39,7 @@ async def list_all_users(
             "email": row.email,
             "college": row.college,
             "current_semester": row.current_semester,
+            "role": row.role or "student",
             "created_at": row.created_at.isoformat() if row.created_at else None,
         }
         for row in result.all()
@@ -52,6 +53,32 @@ async def list_all_users(
         "total_users": total_users,
         "users": users,
     }
+
+
+@router.put("/admin/role")
+async def change_user_role(
+    data: dict,
+    x_user_role: str = Header("student", alias="X-User-Role"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: change a user's role (promote to admin or demote to student)."""
+    if x_user_role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+
+    target_user_id = data.get("user_id")
+    new_role = data.get("role")
+
+    if not target_user_id or new_role not in ("admin", "student"):
+        raise HTTPException(status_code=422, detail="user_id and role (admin/student) required")
+
+    result = await db.execute(select(User).where(User.id == target_user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.role = new_role
+    await db.commit()
+    return {"id": user.id, "email": user.email, "role": new_role}
 
 
 @router.get("/{user_id}", response_model=UserResponse)

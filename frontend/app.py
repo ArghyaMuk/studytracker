@@ -439,6 +439,19 @@ def admin_students():
                            recent_count=recent_count)
 
 
+@app.route("/admin/students/<int:user_id>/role", methods=["POST"])
+@login_required
+@admin_required
+def change_user_role(user_id):
+    new_role = request.form.get("role", "student")
+    status_code, resp = api_put("/users/admin/role", {"user_id": user_id, "role": new_role})
+    if status_code == 200:
+        flash(f"User role changed to {new_role}!", "success")
+    else:
+        flash(resp.get("detail", "Failed to change role"), "error")
+    return redirect(url_for("admin_students"))
+
+
 @app.route("/admin/exams")
 @login_required
 @admin_required

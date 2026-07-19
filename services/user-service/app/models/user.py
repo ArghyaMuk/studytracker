@@ -17,6 +17,7 @@ class User(Base):
     university = Column(String(200), nullable=True)
     program_id = Column(Integer, nullable=True)
     current_semester = Column(Integer, nullable=True)
+    role = Column(String(20), default="student")  # "admin" or "student"
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

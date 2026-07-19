@@ -204,6 +204,35 @@ def login():
     return render_template("login.html")
 
 
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        email = request.form["email"]
+        new_password = request.form["new_password"]
+        confirm_password = request.form["confirm_password"]
+
+        if new_password != confirm_password:
+            flash("Passwords do not match", "error")
+            return redirect(url_for("forgot_password"))
+
+        if len(new_password) < 8:
+            flash("Password must be at least 8 characters", "error")
+            return redirect(url_for("forgot_password"))
+
+        # Call backend to reset password
+        status_code, resp = api_post("/auth/reset-password", {
+            "email": email,
+            "new_password": new_password,
+        })
+        if status_code == 200:
+            flash("Password reset successfully! Please login with your new password.", "success")
+            return redirect(url_for("login"))
+        else:
+            flash(resp.get("detail", "Failed to reset password"), "error")
+
+    return render_template("forgot_password.html")
+
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if request.method == "POST":

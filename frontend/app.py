@@ -1,3 +1,13 @@
+"""
+StudyPilot Frontend – Flask web application serving the student/admin UI.
+
+This module acts as a Backend-For-Frontend (BFF): it renders Jinja2 templates
+and proxies all data operations to the API Gateway. Key sections:
+- API helpers: authenticated HTTP wrappers with automatic token refresh.
+- Auth decorators: login_required and admin_required access control.
+- Route groups: auth, dashboard, quizzes, revision, readiness, settings, admin.
+"""
+
 import os
 import json
 import base64
@@ -11,7 +21,7 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "studypilot-flask-secret-change-me")
 
-# Custom Jinja2 filter
+# Register a Jinja2 filter so templates can parse JSON strings inline
 import json as json_module
 app.jinja_env.filters['from_json'] = lambda s: json_module.loads(s) if s else []
 
@@ -21,15 +31,19 @@ ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@studypilot.com")
 
 @app.context_processor
 def inject_admin_email():
-    """Make ADMIN_EMAIL available in all templates."""
+    """Make ADMIN_EMAIL available in all templates for conditional UI rendering."""
     return {"ADMIN_EMAIL": ADMIN_EMAIL}
 
 
 def decode_jwt_payload(token: str) -> dict:
-    """Safely decode JWT payload (no verification, just parse)."""
+    """Decode the JWT payload without signature verification.
+
+    Used client-side to extract user claims (sub, email, role) from the token
+    immediately after login, avoiding an extra API call.
+    """
     try:
         payload_b64 = token.split(".")[1]
-        # Fix base64url padding
+        # JWT uses base64url encoding which may lack padding – restore it
         padding = 4 - len(payload_b64) % 4
         if padding != 4:
             payload_b64 += "=" * padding
@@ -39,10 +53,14 @@ def decode_jwt_payload(token: str) -> dict:
         return {}
 
 
-# ── Helpers ──
+# ══════════════════════════════════════════════════════════════════════════════
+# API Helpers – Thin wrappers around requests with automatic token refresh.
+# If a 401 is returned, the helper transparently refreshes the access token
+# and retries the request once before giving up.
+# ══════════════════════════════════════════════════════════════════════════════
 
 def api_headers():
-    """Get headers with JWT token for API calls."""
+    """Build request headers with the current JWT access token."""
     token = session.get("access_token")
     headers = {"Content-Type": "application/json"}
     if token:
@@ -51,7 +69,7 @@ def api_headers():
 
 
 def api_get(endpoint):
-    """Make authenticated GET request to backend."""
+    """Authenticated GET request with auto-retry on 401."""
     try:
         r = requests.get(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=30)
         if r.status_code == 401:
@@ -63,7 +81,10 @@ def api_get(endpoint):
 
 
 def api_post(endpoint, data):
-    """Make authenticated POST request to backend."""
+    """Authenticated POST request with auto-retry on 401.
+
+    Skips refresh attempt for auth endpoints to avoid infinite loops.
+    """
     try:
         r = requests.post(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=60)
         if r.status_code == 401 and "auth" not in endpoint:
@@ -75,7 +96,7 @@ def api_post(endpoint, data):
 
 
 def api_put(endpoint, data):
-    """Make authenticated PUT request to backend."""
+    """Authenticated PUT request with auto-retry on 401."""
     try:
         r = requests.put(f"{API_BASE}{endpoint}", json=data, headers=api_headers(), timeout=30)
         if r.status_code == 401:
@@ -87,7 +108,7 @@ def api_put(endpoint, data):
 
 
 def api_delete(endpoint):
-    """Make authenticated DELETE request to backend."""
+    """Authenticated DELETE request with auto-retry on 401."""
     try:
         r = requests.delete(f"{API_BASE}{endpoint}", headers=api_headers(), timeout=30)
         if r.status_code == 401:
@@ -99,7 +120,12 @@ def api_delete(endpoint):
 
 
 def _refresh_token():
-    """Attempt to refresh the access token using the refresh token."""
+    """Attempt to obtain a new access token using the stored refresh token.
+
+    On success, updates the session with fresh tokens and returns True.
+    On failure (expired refresh token or network error), returns False –
+    the caller should let the 401 propagate so the user is redirected to login.
+    """
     refresh_token = session.get("refresh_token")
     if not refresh_token:
         return False
@@ -115,8 +141,12 @@ def _refresh_token():
     return False
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# Auth Decorators – Restrict route access based on login state and role.
+# ══════════════════════════════════════════════════════════════════════════════
+
 def login_required(f):
-    """Decorator to require login."""
+    """Redirect to login page if no access token is present in the session."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if "access_token" not in session:
@@ -126,7 +156,10 @@ def login_required(f):
 
 
 def admin_required(f):
-    """Decorator to require admin login."""
+    """Restrict access to the configured admin email.
+
+    Must be stacked after @login_required so session['email'] is populated.
+    """
     @wraps(f)
     def decorated(*args, **kwargs):
         if session.get("email") != ADMIN_EMAIL:
@@ -136,7 +169,9 @@ def admin_required(f):
     return decorated
 
 
-# ── Auth Routes ──
+# ══════════════════════════════════════════════════════════════════════════════
+# Auth Routes – Login, registration, and logout.
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/")
 def index():
@@ -154,11 +189,11 @@ def login():
         if status == 200:
             session["access_token"] = data["access_token"]
             session["refresh_token"] = data["refresh_token"]
-            # Decode user ID from token
+            # Extract user claims from the JWT payload (avoids extra API call)
             payload = decode_jwt_payload(data["access_token"])
             session["user_id"] = int(payload["sub"])
             session["email"] = payload["email"]
-            # Fetch profile
+            # Fetch full profile for display name
             profile = api_get(f"/users/{session['user_id']}")
             if profile:
                 session["user_name"] = profile.get("name", "")
@@ -201,7 +236,9 @@ def logout():
     return redirect(url_for("login"))
 
 
-# ── Dashboard ──
+# ══════════════════════════════════════════════════════════════════════════════
+# Dashboard
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/dashboard")
 @login_required
@@ -216,7 +253,9 @@ def dashboard():
                            readiness=readiness)
 
 
-# ── Study Materials (was Study Sessions) ──
+# ══════════════════════════════════════════════════════════════════════════════
+# Study Materials
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/sessions")
 @login_required
@@ -257,7 +296,9 @@ def delete_material(material_id):
     return redirect(url_for("sessions_page"))
 
 
-# ── Quizzes ──
+# ══════════════════════════════════════════════════════════════════════════════
+# Quizzes – View available quizzes, take them, submit answers
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/quizzes")
 @login_required
@@ -292,6 +333,7 @@ def delete_quiz_action(quiz_id):
 @login_required
 @admin_required
 def generate_quiz():
+    """Trigger AI-based quiz generation via the quiz service."""
     user_id = session["user_id"]
     data = {
         "subject_code": request.form["subject_code"],
@@ -313,7 +355,9 @@ def generate_quiz():
 @app.route("/quizzes/<int:quiz_id>/submit", methods=["POST"])
 @login_required
 def submit_quiz(quiz_id):
+    """Collect answers from the form and submit for grading."""
     user_id = session["user_id"]
+    # Form fields are named q_{question_id} with the selected answer as value
     answers = {}
     for key, value in request.form.items():
         if key.startswith("q_"):
@@ -327,7 +371,9 @@ def submit_quiz(quiz_id):
         return redirect(url_for("quizzes_page"))
 
 
-# ── Revision ──
+# ══════════════════════════════════════════════════════════════════════════════
+# Revision & Exams – Spaced repetition review scheduling
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/exams")
 @login_required
@@ -348,25 +394,29 @@ def revision_page():
 @app.route("/revision/<int:item_id>/grade", methods=["POST"])
 @login_required
 def grade_revision(item_id):
+    """Submit a recall quality grade (0-5) for a revision item."""
     quality = int(request.form["quality"])
     api_post(f"/revision/{item_id}/grade", {"quality": quality})
     flash("Revision recorded!", "success")
     return redirect(url_for("revision_page"))
 
 
-# ── Readiness ──
+# ══════════════════════════════════════════════════════════════════════════════
+# Readiness – Exam readiness scores and quiz history
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/readiness")
 @login_required
 def readiness_page():
     user_id = session["user_id"]
     scores = api_get(f"/readiness/{user_id}") or []
-    # Also get quiz history for score display
     quiz_history = api_get(f"/quizzes/history?user_id={user_id}") or []
     return render_template("readiness.html", scores=scores, quiz_history=quiz_history)
 
 
-# ── Settings ──
+# ══════════════════════════════════════════════════════════════════════════════
+# Settings – User profile management
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/settings", methods=["GET", "POST"])
 @login_required
@@ -393,23 +443,25 @@ def settings_page():
     return render_template("settings.html", profile=profile)
 
 
-# ── Admin ──
+# ══════════════════════════════════════════════════════════════════════════════
+# Admin Routes – Program, subject, enrollment, exam, and quiz management.
+# All routes below require both @login_required and @admin_required.
+# ══════════════════════════════════════════════════════════════════════════════
 
 @app.route("/admin")
 @login_required
 @admin_required
 def admin_page():
+    """Admin dashboard – shows programs overview and aggregate student stats."""
     programs = api_get("/programs") or []
-    # Fetch student stats
     user_data = api_get("/users/admin/all") or {"total_users": 0, "users": []}
-    # Count recent signups (last 7 days)
+    # Count signups from the last 7 days for the "recent activity" widget
     from datetime import datetime, timedelta
     recent_cutoff = (datetime.now() - timedelta(days=7)).isoformat()
     recent_signups = sum(
         1 for u in user_data.get("users", [])
         if u.get("created_at") and u["created_at"] >= recent_cutoff
     )
-    # Get quiz count
     available_quizzes = api_get("/quizzes/available") or []
     quiz_count = len(available_quizzes)
 
@@ -426,6 +478,7 @@ def admin_page():
 @login_required
 @admin_required
 def admin_students():
+    """List all registered students with signup stats."""
     user_data = api_get("/users/admin/all") or {"total_users": 0, "users": []}
     from datetime import datetime, timedelta
     recent_cutoff = (datetime.now() - timedelta(days=7)).isoformat()
@@ -443,6 +496,7 @@ def admin_students():
 @login_required
 @admin_required
 def change_user_role(user_id):
+    """Promote or demote a user's role (student ↔ admin)."""
     new_role = request.form.get("role", "student")
     status_code, resp = api_put("/users/admin/role", {"user_id": user_id, "role": new_role})
     if status_code == 200:
@@ -465,9 +519,10 @@ def admin_exams():
 @login_required
 @admin_required
 def admin_enrollments():
+    """Manage student-subject enrollments. Collects subjects from all programs."""
     enrollments = api_get("/enrollments") or []
     students = (api_get("/users/admin/all") or {}).get("users", [])
-    # Get subjects from all programs
+    # Build a deduplicated list of all subjects across programs and semesters
     programs = api_get("/programs") or []
     all_subjects = []
     for prog in programs:
@@ -486,24 +541,23 @@ def admin_enrollments():
 @login_required
 @admin_required
 def admin_results():
-    # Get all quiz attempts
+    """View all quiz attempts with per-student analytics."""
     all_attempts = api_get("/quizzes/history/all") or []
-    # Get student list for name lookup
     user_data = api_get("/users/admin/all") or {"users": []}
     users_map = {u["id"]: u for u in user_data.get("users", [])}
 
-    # Enrich attempts with student names
+    # Enrich each attempt with the student's name and email for display
     for a in all_attempts:
         user = users_map.get(a.get("user_id"))
         a["user_name"] = user["name"] if user else ""
         a["user_email"] = user["email"] if user else ""
 
-    # Calculate stats
+    # Aggregate statistics
     avg_score = round(sum(a["score"] for a in all_attempts) / len(all_attempts)) if all_attempts else 0
     pass_count = sum(1 for a in all_attempts if a["score"] >= 50)
     pass_rate = round(pass_count / len(all_attempts) * 100) if all_attempts else 0
 
-    # Per-student progress
+    # Group scores by student for per-student progress tracking
     student_scores = {}
     for a in all_attempts:
         uid = a.get("user_id")
@@ -523,7 +577,7 @@ def admin_results():
             "avg_score": round(sum(s["scores"]) / len(s["scores"])),
         }
         for s in student_scores.values()
-        if s["name"]  # Skip admin
+        if s["name"]  # Skip admin entries without a name
     ]
     students_with_attempts.sort(key=lambda x: x["avg_score"], reverse=True)
 
@@ -619,14 +673,14 @@ def add_program():
 @login_required
 @admin_required
 def delete_program(program_id):
-    # First, get all subjects for this program to delete their quizzes
+    """Delete a program and cascade-delete all associated quizzes."""
+    # Collect all subjects under this program so their quizzes can be removed
     programs = api_get("/programs") or []
     program = next((p for p in programs if p["id"] == program_id), None)
     if program:
         for sem in range(1, program.get("total_semesters", 8) + 1):
             subjects = api_get(f"/programs/{program_id}/semesters/{sem}/subjects") or []
             for subj in subjects:
-                # Delete all quizzes for this subject code
                 api_delete(f"/admin/quizzes/by-subject/{subj['code']}")
 
     status = api_delete(f"/admin/programs/{program_id}")
@@ -654,7 +708,9 @@ def admin_subjects(program_id):
 @login_required
 @admin_required
 def add_subject(program_id):
+    """Add a subject with its unit breakdown to a program semester."""
     semester = int(request.form.get("semester", 1))
+    # Dynamically collect unit fields (unit_title_1, unit_topics_1, etc.)
     units = []
     i = 1
     while f"unit_title_{i}" in request.form:
@@ -684,11 +740,12 @@ def add_subject(program_id):
 @login_required
 @admin_required
 def delete_subject(subject_id):
+    """Delete a subject and its associated quizzes."""
     program_id = request.form.get("program_id", 1)
     semester = request.form.get("semester", 1)
     subject_code = request.form.get("subject_code", "")
 
-    # Delete all quizzes for this subject code
+    # Clean up quizzes linked to this subject before removing it
     if subject_code:
         api_delete(f"/admin/quizzes/by-subject/{subject_code}")
 
@@ -704,11 +761,12 @@ def delete_subject(subject_id):
 @login_required
 @admin_required
 def admin_quizzes():
+    """Admin quiz management – supports AI generation and manual creation."""
     if request.method == "POST":
         action = request.form.get("action")
 
         if action == "generate":
-            # Generate from AI
+            # ── AI-generated quiz: send params to the quiz service ──
             user_id = session["user_id"]
             data = {
                 "subject_code": request.form["subject_code"],
@@ -725,7 +783,7 @@ def admin_quizzes():
                 flash(resp.get("detail", "Generation failed"), "error")
 
         elif action == "manual":
-            # Manual quiz creation
+            # ── Manual quiz: collect questions from numbered form fields ──
             questions = []
             i = 1
             while f"question_{i}" in request.form:

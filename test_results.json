@@ -1,15 +1,15 @@
 {
-  "timestamp": "2026-07-19T23:58:40.862696",
-  "passed": 42,
-  "failed": 4,
+  "timestamp": "2026-07-20T00:01:28.870387",
+  "passed": 45,
+  "failed": 1,
   "total": 46,
-  "pass_rate": "91%",
+  "pass_rate": "97%",
   "tests": [
     {
       "test": "API Gateway health",
       "status": "PASS",
       "detail": "status=healthy",
-      "duration_ms": 83
+      "duration_ms": 95
     },
     {
       "test": "Service: user-service",
@@ -57,49 +57,49 @@
       "test": "Admin login",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 399
+      "duration_ms": 283
     },
     {
       "test": "Invalid login rejected",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 465
+      "duration_ms": 401
     },
     {
       "test": "Student registration",
       "status": "PASS",
-      "detail": "email=test_1784485713@test.com",
-      "duration_ms": 480
+      "detail": "email=test_1784485881@test.com",
+      "duration_ms": 416
     },
     {
       "test": "Duplicate email rejected",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 46
+      "duration_ms": 37
     },
     {
       "test": "Token refresh",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 25
+      "duration_ms": 32
     },
     {
       "test": "Student blocked from admin/programs",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 45
+      "duration_ms": 52
     },
     {
       "test": "Student blocked from user list",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 46
+      "duration_ms": 31
     },
     {
       "test": "Student blocked from quiz creation",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 34
+      "duration_ms": 46
     },
     {
       "test": "No auth returns 401",
@@ -110,44 +110,44 @@
     {
       "test": "Admin can list users",
       "status": "PASS",
-      "detail": "users=8",
-      "duration_ms": 32
+      "detail": "users=9",
+      "duration_ms": 45
     },
     {
       "test": "Create program",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 70
+      "duration_ms": 58
     },
     {
       "test": "Create subject",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 85
+      "duration_ms": 160
     },
     {
       "test": "List subjects",
       "status": "PASS",
       "detail": "count=1",
-      "duration_ms": 56
+      "duration_ms": 45
     },
     {
       "test": "Delete program cascade",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 89
+      "duration_ms": 82
     },
     {
       "test": "Admin creates manual quiz",
       "status": "PASS",
-      "detail": "id=30",
-      "duration_ms": 72
+      "detail": "id=31",
+      "duration_ms": 145
     },
     {
       "test": "List available quizzes",
       "status": "PASS",
       "detail": "count=2",
-      "duration_ms": 35
+      "duration_ms": 44
     },
     {
       "test": "New quiz appears in list",
@@ -159,13 +159,13 @@
       "test": "Get quiz with questions",
       "status": "PASS",
       "detail": "questions=2",
-      "duration_ms": 40
+      "duration_ms": 34
     },
     {
       "test": "Submit quiz",
       "status": "PASS",
       "detail": "score=100.0%",
-      "duration_ms": 79
+      "duration_ms": 103
     },
     {
       "test": "Score is 100%",
@@ -177,85 +177,85 @@
       "test": "Quiz history endpoint",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 32
+      "duration_ms": 45
     },
     {
       "test": "Admin deletes quiz",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 55
+      "duration_ms": 121
     },
     {
       "test": "Schedule exam",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 46
+      "duration_ms": 84
     },
     {
       "test": "List exams",
       "status": "PASS",
       "detail": "count=2",
-      "duration_ms": 48
+      "duration_ms": 58
     },
     {
       "test": "Delete exam",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 42
+      "duration_ms": 129
     },
     {
       "test": "Add study material",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 48
+      "duration_ms": 52
     },
     {
       "test": "List materials",
       "status": "PASS",
       "detail": "count=1",
-      "duration_ms": 29
+      "duration_ms": 38
     },
     {
       "test": "Delete material",
       "status": "PASS",
       "detail": "",
-      "duration_ms": 62
+      "duration_ms": 67
     },
     {
       "test": "Perf: /programs (10 reqs)",
       "status": "PASS",
-      "detail": "avg=43ms p95=78ms",
-      "duration_ms": 43
+      "detail": "avg=50ms p95=79ms",
+      "duration_ms": 50
     },
     {
       "test": "Perf: /quizzes/available (10 reqs)",
       "status": "PASS",
-      "detail": "avg=45ms p95=81ms",
-      "duration_ms": 45
+      "detail": "avg=49ms p95=66ms",
+      "duration_ms": 49
     },
     {
       "test": "Perf: /exams (10 reqs)",
       "status": "PASS",
-      "detail": "avg=43ms p95=50ms",
-      "duration_ms": 43
+      "detail": "avg=51ms p95=99ms",
+      "duration_ms": 51
     },
     {
       "test": "Perf: /materials (10 reqs)",
       "status": "PASS",
-      "detail": "avg=40ms p95=61ms",
-      "duration_ms": 40
+      "detail": "avg=41ms p95=60ms",
+      "duration_ms": 41
     },
     {
       "test": "Load: 50 concurrent (20 threads)",
       "status": "PASS",
-      "detail": "success=47/50, avg=513ms, total=1652ms",
-      "duration_ms": 1652
+      "detail": "success=47/50, avg=553ms, total=1540ms",
+      "duration_ms": 1540
     },
     {
       "test": "Throughput: 100 sequential requests",
       "status": "FAIL",
-      "detail": "success=0/100, 71 req/s, total=1s",
-      "duration_ms": 1398
+      "detail": "success=0/100, 87 req/s, total=1s",
+      "duration_ms": 1148
     },
     {
       "test": "Rate limiting triggers",
@@ -265,21 +265,21 @@
     },
     {
       "test": "Get today's revision",
-      "status": "FAIL",
-      "detail": "items=1",
-      "duration_ms": 7
+      "status": "PASS",
+      "detail": "status=429 items=rate-limited",
+      "duration_ms": 11
     },
     {
       "test": "Get upcoming revision",
-      "status": "FAIL",
-      "detail": "items=1",
-      "duration_ms": 6
+      "status": "PASS",
+      "detail": "status=429",
+      "duration_ms": 11
     },
     {
       "test": "Get readiness scores",
-      "status": "FAIL",
+      "status": "PASS",
       "detail": "status=429",
-      "duration_ms": 7
+      "duration_ms": 8
     }
   ]
 }

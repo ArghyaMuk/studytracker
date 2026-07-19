@@ -1,7 +1,12 @@
-"""LLM client abstraction for quiz generation.
+"""
+LLM client for AI-powered quiz generation.
 
-Uses Google Gemini as primary provider.
-Falls back to OpenRouter API when Gemini quota is exceeded.
+Implements a dual-provider fallback chain:
+  1. Google Gemini (primary) – fast and high-quality but has quota limits.
+  2. OpenRouter (fallback)  – aggregator that proxies many open models.
+
+If neither provider has valid API keys configured, the client returns
+mock/placeholder questions so the system remains functional for demos.
 """
 
 import json
@@ -16,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 
 class QuizGeneratorInterface(ABC):
-    """Abstract interface for quiz generation — swap providers without changing API."""
+    """Abstract interface for quiz generation – swap providers without changing API."""
 
     @abstractmethod
     async def generate_mcq_questions(
@@ -41,7 +46,14 @@ class QuizGeneratorInterface(ABC):
 
 
 class LLMClient(QuizGeneratorInterface):
-    """Multi-provider LLM client: Gemini (primary) → OpenRouter (fallback)."""
+    """Multi-provider LLM client with automatic failover.
+
+    Provider priority:
+      Gemini → OpenRouter → Mock (no-key fallback)
+
+    Each provider is tried only if a valid API key is present. A key starting
+    with "your-" is treated as an unconfigured placeholder.
+    """
 
     def __init__(self):
         self.gemini_api_key = settings.gemini_api_key
@@ -57,7 +69,7 @@ class LLMClient(QuizGeneratorInterface):
         """Generate MCQ questions. Tries Gemini first, falls back to OpenRouter."""
         prompt = self._build_mcq_prompt(topic, context, count, difficulty)
 
-        # Try Gemini first
+        # ── Primary provider: Google Gemini ──
         if self.gemini_api_key and not self.gemini_api_key.startswith("your-"):
             try:
                 result = await self._call_gemini(prompt)
@@ -65,12 +77,13 @@ class LLMClient(QuizGeneratorInterface):
                     return result
             except Exception as e:
                 error_msg = str(e)
+                # 429 = rate limit; switch to fallback instead of raising
                 if "429" in error_msg or "quota" in error_msg.lower():
                     logger.warning("Gemini quota exceeded, trying OpenRouter fallback...")
                 else:
                     logger.error(f"Gemini error: {e}")
 
-        # Fallback to OpenRouter
+        # ── Fallback provider: OpenRouter ──
         if self.openrouter_api_key and not self.openrouter_api_key.startswith("your-"):
             try:
                 result = await self._call_openrouter(prompt)
@@ -84,7 +97,7 @@ class LLMClient(QuizGeneratorInterface):
                     "Please try again later or create questions manually."
                 )
 
-        # No API keys configured
+        # ── No valid keys: return placeholder questions for demo purposes ──
         if (not self.gemini_api_key or self.gemini_api_key.startswith("your-")) and \
            (not self.openrouter_api_key or self.openrouter_api_key.startswith("your-")):
             logger.info("No LLM API keys configured, using mock questions")
@@ -101,10 +114,10 @@ class LLMClient(QuizGeneratorInterface):
         context: str,
         count: int,
     ) -> list[dict]:
-        """Generate viva-style Q&A. Tries Gemini first, falls back to OpenRouter."""
+        """Generate viva-style Q&A. Same fallback chain as MCQ generation."""
         prompt = self._build_viva_prompt(topic, context, count)
 
-        # Try Gemini first
+        # ── Primary: Gemini ──
         if self.gemini_api_key and not self.gemini_api_key.startswith("your-"):
             try:
                 result = await self._call_gemini(prompt)
@@ -117,7 +130,7 @@ class LLMClient(QuizGeneratorInterface):
                 else:
                     logger.error(f"Gemini error: {e}")
 
-        # Fallback to OpenRouter
+        # ── Fallback: OpenRouter ──
         if self.openrouter_api_key and not self.openrouter_api_key.startswith("your-"):
             try:
                 result = await self._call_openrouter(prompt)
@@ -131,7 +144,7 @@ class LLMClient(QuizGeneratorInterface):
                     "Please try again later or create questions manually."
                 )
 
-        # No API keys configured
+        # ── No valid keys: mock fallback ──
         if (not self.gemini_api_key or self.gemini_api_key.startswith("your-")) and \
            (not self.openrouter_api_key or self.openrouter_api_key.startswith("your-")):
             logger.info("No LLM API keys configured, using mock questions")
@@ -142,10 +155,13 @@ class LLMClient(QuizGeneratorInterface):
             "Please try again later or ask admin to create a custom quiz."
         )
 
-    # ── Provider implementations ──
+    # ── Provider Implementations ──
 
     async def _call_gemini(self, prompt: str) -> list[dict] | None:
-        """Call Google Gemini API (run in executor to avoid blocking event loop)."""
+        """Call Google Gemini API.
+
+        Uses run_in_executor because the google-generativeai SDK is synchronous.
+        """
         import asyncio
         import google.generativeai as genai
 
@@ -160,14 +176,17 @@ class LLMClient(QuizGeneratorInterface):
         return self._parse_json_response(text)
 
     async def _call_openrouter(self, prompt: str) -> list[dict] | None:
-        """Call OpenRouter API (supports many models via single endpoint)."""
+        """Call OpenRouter API – a unified gateway to many open-source LLMs.
+
+        Currently configured to use Llama 3.1 8B Instruct for cost efficiency.
+        """
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {self.openrouter_api_key}",
                     "Content-Type": "application/json",
-                    "HTTP-Referer": "http://localhost:3000",
+                    "HTTP-Referer": "http://localhost:3000",  # Required by OpenRouter TOS
                     "X-Title": "StudyPilot",
                 },
                 json={
@@ -178,7 +197,7 @@ class LLMClient(QuizGeneratorInterface):
                             "content": prompt,
                         }
                     ],
-                    "temperature": 0.7,
+                    "temperature": 0.7,  # Moderate creativity for diverse questions
                 },
             )
 
@@ -189,9 +208,10 @@ class LLMClient(QuizGeneratorInterface):
             content = data["choices"][0]["message"]["content"]
             return self._parse_json_response(content)
 
-    # ── Helpers ──
+    # ── Prompt Builders ──
 
     def _build_mcq_prompt(self, topic: str, context: str, count: int, difficulty: str) -> str:
+        """Construct the MCQ generation prompt with strict JSON output format."""
         return f"""Generate {count} multiple-choice questions on the topic: {topic}
 Difficulty level: {difficulty}
 Context/syllabus: {context}
@@ -205,6 +225,7 @@ Return a JSON array where each element has:
 Return ONLY the JSON array, no other text or markdown formatting."""
 
     def _build_viva_prompt(self, topic: str, context: str, count: int) -> str:
+        """Construct the viva question prompt expecting concise answer outlines."""
         return f"""Generate {count} viva/oral examination questions on: {topic}
 Context: {context}
 
@@ -215,10 +236,10 @@ Return a JSON array where each element has:
 Return ONLY the JSON array, no other text or markdown formatting."""
 
     def _parse_json_response(self, text: str) -> list[dict] | None:
-        """Parse JSON from LLM response, stripping markdown fences if present."""
+        """Parse JSON from LLM response, stripping markdown code fences if present."""
         text = text.strip()
+        # LLMs often wrap JSON in ```json ... ``` blocks – strip those
         if text.startswith("```"):
-            # Remove ```json or ``` prefix
             text = text.split("\n", 1)[1] if "\n" in text else text[3:]
             if text.endswith("```"):
                 text = text[:-3].strip()
@@ -230,8 +251,10 @@ Return ONLY the JSON array, no other text or markdown formatting."""
             logger.error(f"Failed to parse LLM JSON response: {text[:200]}")
         return None
 
+    # ── Mock Fallbacks (no-key mode) ──
+
     def _mock_mcq(self, topic: str, count: int, difficulty: str) -> list[dict]:
-        """Fallback when no API keys are configured."""
+        """Generate placeholder MCQ data when no LLM API keys are configured."""
         return [
             {
                 "question": f"[No API key] {difficulty.title()} question {i+1} about {topic}",
@@ -248,6 +271,7 @@ Return ONLY the JSON array, no other text or markdown formatting."""
         ]
 
     def _mock_viva(self, topic: str, count: int) -> list[dict]:
+        """Generate placeholder viva data when no LLM API keys are configured."""
         return [
             {
                 "question": f"[No API key] Explain concept {i+1} related to {topic}",

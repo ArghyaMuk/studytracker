@@ -47,8 +47,8 @@ echo   Backend API:    http://localhost:8000
 echo   Frontend:       http://localhost:3000
 echo   RabbitMQ UI:    http://localhost:15672
 echo.
-echo   Admin Login:    admin@studypilot.com / Admin@1234
-echo   Test Login:     (register at /register)
+echo   Admin Login:    (see .env file for credentials)
+echo   Student:       Register at /register
 echo.
 echo   To stop all services, run: stop.bat
 echo ============================================

@@ -8,7 +8,7 @@ from .config import settings
 
 def create_tokens(user_id: int, email: str) -> dict[str, str]:
     """Create access and refresh token pair for a user."""
-    role = "admin" if email == "admin@studypilot.com" else "student"
+    role = "admin" if email == settings.admin_email else "student"
     data = {"sub": str(user_id), "email": email, "role": role}
     access_token = create_access_token(
         data,

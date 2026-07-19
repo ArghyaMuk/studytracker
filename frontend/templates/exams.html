@@ -44,7 +44,7 @@
         </div>
         <div>
             {% if exam.quiz_id %}
-                {% if session.get('email') != 'admin@studypilot.com' %}
+                {% if session.get('email') != ADMIN_EMAIL %}
                 <a href="{{ url_for('take_quiz', quiz_id=exam.quiz_id) }}" class="btn btn-success">
                     ✍️ Start Exam
                 </a>

@@ -45,7 +45,7 @@
             {% endif %}
         </div>
         <div style="display:flex;gap:8px;align-items:center">
-            {% if session.get('email') == 'admin@studypilot.com' %}
+            {% if session.get('email') == ADMIN_EMAIL %}
             <form method="POST" action="{{ url_for('delete_material', material_id=mat.id) }}">
                 <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete this material?')">Delete</button>
             </form>
@@ -73,7 +73,7 @@
 {% endif %}
 
 <!-- Admin: Add Material -->
-{% if session.get('email') == 'admin@studypilot.com' %}
+{% if session.get('email') == ADMIN_EMAIL %}
 <hr style="margin:32px 0;border-color:var(--border)">
 <div class="card">
     <h3>➕ Add Study Material (Admin)</h3>

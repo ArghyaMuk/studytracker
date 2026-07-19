@@ -16,6 +16,13 @@ import json as json_module
 app.jinja_env.filters['from_json'] = lambda s: json_module.loads(s) if s else []
 
 API_BASE = os.getenv("API_BASE_URL", "http://localhost:8000/api/v1")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "admin@studypilot.com")
+
+
+@app.context_processor
+def inject_admin_email():
+    """Make ADMIN_EMAIL available in all templates."""
+    return {"ADMIN_EMAIL": ADMIN_EMAIL}
 
 
 def decode_jwt_payload(token: str) -> dict:
@@ -122,7 +129,7 @@ def admin_required(f):
     """Decorator to require admin login."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if session.get("email") != "admin@studypilot.com":
+        if session.get("email") != ADMIN_EMAIL:
             flash("Admin access required", "error")
             return redirect(url_for("dashboard"))
         return f(*args, **kwargs)

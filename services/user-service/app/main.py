@@ -22,12 +22,12 @@ async def lifespan(app: FastAPI):
 
     async with async_session_factory() as db:
         repo = UserRepository(db)
-        admin = await repo.get_by_email("admin@studypilot.com")
+        admin = await repo.get_by_email(settings.admin_email)
         if not admin:
             admin_user = User(
                 name="Admin User",
-                email="admin@studypilot.com",
-                password_hash=hash_password("Admin@1234"),
+                email=settings.admin_email,
+                password_hash=hash_password(settings.admin_password),
                 college="StudyPilot",
                 university="StudyPilot",
                 current_semester=1,

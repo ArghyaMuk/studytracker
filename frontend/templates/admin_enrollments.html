@@ -17,7 +17,7 @@
                 <select name="user_id" required onchange="updateEmail(this)">
                     <option value="">— Select Student —</option>
                     {% for s in students %}
-                    {% if s.email != 'admin@studypilot.com' %}
+                    {% if s.email != ADMIN_EMAIL %}
                     <option value="{{ s.id }}" data-email="{{ s.email }}">{{ s.name }} ({{ s.email }})</option>
                     {% endif %}
                     {% endfor %}

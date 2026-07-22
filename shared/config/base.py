@@ -11,7 +11,7 @@ class BaseServiceSettings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     # RabbitMQ
-    rabbitmq_url: str = "amqp://guest:guest@localhost:5672/"
+    rabbitmq_url: str = "amqp://arghya:arghya@localhost:5672/"
 
     # JWT
     jwt_secret_key: str = "change-me-in-production"

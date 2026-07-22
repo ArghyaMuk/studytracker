@@ -33,8 +33,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: arghya
+      RABBITMQ_DEFAULT_PASS: arghya
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "check_running"]
       interval: 10s
@@ -71,7 +71,7 @@ services:
     environment:
       - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_users
       - REDIS_URL=redis://redis:6379/0
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://arghya:arghya@rabbitmq:5672/
       - JWT_SECRET_KEY=studypilot-dev-secret-key-change-in-prod
       - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@studypilot.com}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-Admin@1234}
@@ -101,7 +101,7 @@ services:
       - "8003:8003"
     environment:
       - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_sessions
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://arghya:arghya@rabbitmq:5672/
       - CURRICULUM_SERVICE_URL=http://curriculum-service:8002
     depends_on:
       mysql:
@@ -117,7 +117,7 @@ services:
       - "8004:8004"
     environment:
       - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_repetition
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://arghya:arghya@rabbitmq:5672/
       - USER_SERVICE_URL=http://user-service:8001
     depends_on:
       mysql:
@@ -133,7 +133,7 @@ services:
       - "8005:8005"
     environment:
       - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_quizzes
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://arghya:arghya@rabbitmq:5672/
       - CURRICULUM_SERVICE_URL=http://curriculum-service:8002
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
@@ -151,7 +151,7 @@ services:
       - "8006:8006"
     environment:
       - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_readiness
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://arghya:arghya@rabbitmq:5672/
       - REDIS_URL=redis://redis:6379/0
       - CURRICULUM_SERVICE_URL=http://curriculum-service:8002
     depends_on:
@@ -170,7 +170,7 @@ services:
       - "8007:8007"
     environment:
       - DATABASE_URL=mysql+aiomysql://root:password@mysql:3306/studypilot_notifications
-      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://arghya:arghya@rabbitmq:5672/
       - REDIS_URL=redis://redis:6379/0
       - READINESS_SERVICE_URL=http://readiness-service:8006
       - REPETITION_SERVICE_URL=http://repetition-service:8004

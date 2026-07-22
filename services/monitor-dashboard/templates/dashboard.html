@@ -38,7 +38,10 @@
 <body>
     <div class="header">
         <h1>📊 StudyPilot Monitor</h1>
-        <div class="status"><span class="live"></span> Live — Updated: <span id="last-update">--:--:--</span></div>
+        <div style="display:flex;align-items:center;gap:16px">
+            <div class="status"><span class="live"></span> Live — Updated: <span id="last-update">--:--:--</span></div>
+            <a href="/logout" style="color:#94a3b8;font-size:0.8rem;text-decoration:none">🚪 Logout</a>
+        </div>
     </div>
 
     <div class="grid">
@@ -94,6 +97,16 @@
                 <div class="chart-bar" id="qps-chart"></div>
             </div>
         </div>
+
+        <!-- Users -->
+        <div class="card wide">
+            <h2>👥 Registered Users</h2>
+            <div class="sub" style="margin-bottom:8px"><span id="user-count">0</span> total users</div>
+            <table class="db-table" id="users-table">
+                <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>College</th><th>Sem</th><th>Joined</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -147,6 +160,22 @@
 
                     // QPS
                     document.getElementById('qps-value').textContent = mysql.qps || 0;
+
+                    // Users table
+                    const users = data.users || [];
+                    document.getElementById('user-count').textContent = users.length;
+                    const usersBody = document.querySelector('#users-table tbody');
+                    usersBody.innerHTML = users.map(u => `
+                        <tr>
+                            <td>${u.id}</td>
+                            <td>${u.name}</td>
+                            <td>${u.email}</td>
+                            <td><span style="color:${u.role === 'admin' ? '#f87171' : '#60a5fa'}">${u.role}</span></td>
+                            <td>${u.college}</td>
+                            <td>${u.semester}</td>
+                            <td>${u.created_at}</td>
+                        </tr>
+                    `).join('');
 
                     // Charts (history)
                     const history = data.history || [];

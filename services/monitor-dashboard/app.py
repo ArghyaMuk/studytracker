@@ -2,6 +2,7 @@
 StudyPilot Monitoring Dashboard
 Runs independently on port 9000 — shows real-time API health,
 MySQL stats, Redis stats, RabbitMQ status, and system metrics.
+Protected by login (admin credentials from env vars).
 """
 
 import os
@@ -11,9 +12,11 @@ import threading
 import requests
 import pymysql
 import redis
-from flask import Flask, render_template, jsonify
+from functools import wraps
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session
 
 app = Flask(__name__)
+app.secret_key = os.getenv("MONITOR_SECRET", "monitor-secret-key-change-me")
 
 # Configuration
 API_GATEWAY = os.getenv("API_GATEWAY_URL", "http://localhost:8000")
@@ -25,6 +28,8 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 RABBITMQ_API = os.getenv("RABBITMQ_API", "http://localhost:15672/api")
 RABBITMQ_USER = os.getenv("RABBITMQ_USER", "arghya")
 RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "arghya")
+MONITOR_USER = os.getenv("MONITOR_USER", "admin")
+MONITOR_PASS = os.getenv("MONITOR_PASS", "admin123")
 
 # In-memory metrics store (updated by background thread)
 metrics = {
@@ -32,9 +37,19 @@ metrics = {
     "mysql": {},
     "redis": {},
     "rabbitmq": {},
+    "users": [],
     "history": [],  # Last 60 data points (1 per second)
     "last_update": None,
 }
+
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("logged_in"):
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
 
 
 def collect_api_health():
@@ -82,6 +97,17 @@ def collect_mysql_stats():
         # Slow queries
         cursor.execute("SHOW STATUS LIKE 'Slow_queries'")
         slow = int(cursor.fetchone()[1])
+
+        # Fetch users list
+        try:
+            cursor.execute("SELECT id, name, email, role, college, current_semester, created_at FROM studypilot_users.users ORDER BY id")
+            users = [{"id": r[0], "name": r[1], "email": r[2], "role": r[3] or "student",
+                      "college": r[4] or "—", "semester": r[5] or "—",
+                      "created_at": str(r[6])[:19] if r[6] else "—"}
+                     for r in cursor.fetchall()]
+            metrics["users"] = users
+        except Exception:
+            pass
 
         conn.close()
         return {
@@ -175,11 +201,32 @@ collector_thread.start()
 
 
 @app.route("/")
+@login_required
 def dashboard():
     return render_template("dashboard.html")
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form.get("username", "")
+        password = request.form.get("password", "")
+        if username == MONITOR_USER and password == MONITOR_PASS:
+            session["logged_in"] = True
+            session["username"] = username
+            return redirect(url_for("dashboard"))
+        return render_template("login.html", error="Invalid credentials")
+    return render_template("login.html", error=None)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
 @app.route("/api/metrics")
+@login_required
 def api_metrics():
     """JSON endpoint for real-time metrics (polled by frontend JS)."""
     return jsonify(metrics)

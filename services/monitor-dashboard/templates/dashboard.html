@@ -107,6 +107,29 @@
                 <tbody></tbody>
             </table>
         </div>
+
+        <!-- AI Call Monitor -->
+        <div class="card wide">
+            <h2>🤖 AI Quiz Generation (Gemini / OpenRouter)</h2>
+            <div style="display:flex;gap:24px;margin-bottom:12px">
+                <div><span class="sub">Total Quizzes Generated</span><br><strong id="ai-total-quizzes" style="font-size:1.3rem;color:#60a5fa">0</strong></div>
+                <div><span class="sub">Total Attempts</span><br><strong id="ai-total-attempts" style="font-size:1.3rem;color:#10b981">0</strong></div>
+            </div>
+            <h3 style="font-size:0.75rem;color:#94a3b8;margin:12px 0 8px;text-transform:uppercase">Recent AI Generations</h3>
+            <table class="db-table" id="ai-gen-table">
+                <thead><tr><th>ID</th><th>Subject</th><th>Unit</th><th>Mode</th><th>Source</th><th>Questions</th><th>Generated At</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Recent Quiz Attempts -->
+        <div class="card wide">
+            <h2>📝 Recent Quiz Attempts (Live)</h2>
+            <table class="db-table" id="attempts-table">
+                <thead><tr><th>ID</th><th>User ID</th><th>Subject</th><th>Unit</th><th>Score</th><th>Submitted</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -181,6 +204,38 @@
                     const history = data.history || [];
                     renderChart('qps-chart', history.map(h => h.mysql_qps), 50);
                     renderChart('redis-chart', history.map(h => h.redis_ops), 100);
+
+                    // AI Call Monitor
+                    const ai = data.ai_calls || {};
+                    document.getElementById('ai-total-quizzes').textContent = ai.total_quizzes || 0;
+                    document.getElementById('ai-total-attempts').textContent = ai.total_attempts || 0;
+
+                    // AI Generations table
+                    const genBody = document.querySelector('#ai-gen-table tbody');
+                    genBody.innerHTML = (ai.recent_generations || []).map(g => `
+                        <tr>
+                            <td>${g.id}</td>
+                            <td>${g.subject}</td>
+                            <td>${g.unit}</td>
+                            <td>${g.mode}</td>
+                            <td><span style="color:${g.source === 'unit' ? '#60a5fa' : '#fbbf24'}">${g.source}</span></td>
+                            <td>${g.questions}</td>
+                            <td>${g.created_at}</td>
+                        </tr>
+                    `).join('');
+
+                    // Recent Attempts table
+                    const attBody = document.querySelector('#attempts-table tbody');
+                    attBody.innerHTML = (ai.recent_attempts || []).map(a => `
+                        <tr>
+                            <td>${a.id}</td>
+                            <td>${a.user_id}</td>
+                            <td>${a.subject}</td>
+                            <td>${a.unit}</td>
+                            <td><span style="color:${a.score >= 75 ? '#10b981' : a.score >= 50 ? '#fbbf24' : '#ef4444'};font-weight:700">${a.score}%</span></td>
+                            <td>${a.submitted_at}</td>
+                        </tr>
+                    `).join('');
                 })
                 .catch(() => {
                     document.getElementById('api-status').textContent = 'OFFLINE';

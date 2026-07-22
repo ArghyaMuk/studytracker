@@ -38,6 +38,7 @@ metrics = {
     "redis": {},
     "rabbitmq": {},
     "users": [],
+    "ai_calls": [],  # Recent AI quiz generation calls
     "history": [],  # Last 60 data points (1 per second)
     "last_update": None,
 }
@@ -164,6 +165,70 @@ def collect_rabbitmq_stats():
     return {"status": "unreachable"}
 
 
+def collect_ai_stats():
+    """Get AI call stats from quiz_attempts and quizzes tables."""
+    try:
+        conn = pymysql.connect(host=MYSQL_HOST, port=MYSQL_PORT,
+                               user=MYSQL_USER, password=MYSQL_PASS,
+                               database="studypilot_quizzes")
+        cursor = conn.cursor()
+
+        # Total quizzes generated
+        cursor.execute("SELECT COUNT(*) FROM quizzes")
+        total_quizzes = cursor.fetchone()[0]
+
+        # Recent quiz generations (last 20)
+        cursor.execute("""
+            SELECT q.id, q.subject_code, q.unit_number, q.mode, q.source_type, 
+                   q.created_at, COUNT(qq.id) as question_count
+            FROM quizzes q
+            LEFT JOIN quiz_questions qq ON qq.quiz_id = q.id
+            GROUP BY q.id
+            ORDER BY q.created_at DESC
+            LIMIT 20
+        """)
+        recent = [
+            {
+                "id": r[0], "subject": r[1], "unit": r[2], "mode": r[3],
+                "source": r[4], "created_at": str(r[5])[:19] if r[5] else "—",
+                "questions": r[6],
+            }
+            for r in cursor.fetchall()
+        ]
+
+        # Total attempts
+        cursor.execute("SELECT COUNT(*) FROM quiz_attempts")
+        total_attempts = cursor.fetchone()[0]
+
+        # Recent attempts
+        cursor.execute("""
+            SELECT qa.id, qa.user_id, qa.score, qa.submitted_at,
+                   q.subject_code, q.unit_number
+            FROM quiz_attempts qa
+            JOIN quizzes q ON q.id = qa.quiz_id
+            ORDER BY qa.submitted_at DESC
+            LIMIT 15
+        """)
+        recent_attempts = [
+            {
+                "id": r[0], "user_id": r[1], "score": round(r[2], 1),
+                "submitted_at": str(r[3])[:19] if r[3] else "—",
+                "subject": r[4], "unit": r[5],
+            }
+            for r in cursor.fetchall()
+        ]
+
+        conn.close()
+        return {
+            "total_quizzes": total_quizzes,
+            "total_attempts": total_attempts,
+            "recent_generations": recent,
+            "recent_attempts": recent_attempts,
+        }
+    except Exception as e:
+        return {"total_quizzes": 0, "total_attempts": 0, "recent_generations": [], "recent_attempts": [], "error": str(e)}
+
+
 def background_collector():
     """Background thread: collect all metrics every 2 seconds."""
     while True:
@@ -172,11 +237,13 @@ def background_collector():
             mysql = collect_mysql_stats()
             redis_stats = collect_redis_stats()
             rabbit = collect_rabbitmq_stats()
+            ai = collect_ai_stats()
 
             metrics["api_health"] = api
             metrics["mysql"] = mysql
             metrics["redis"] = redis_stats
             metrics["rabbitmq"] = rabbit
+            metrics["ai_calls"] = ai
             metrics["last_update"] = time.strftime("%H:%M:%S")
 
             # Keep last 60 data points for charts

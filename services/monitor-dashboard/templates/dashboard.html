@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudyPilot — Monitoring Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+        .header { background: linear-gradient(135deg, #1e293b, #334155); padding: 16px 32px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+        .header h1 { font-size: 1.3rem; color: #60a5fa; }
+        .header .status { font-size: 0.8rem; color: #94a3b8; }
+        .header .live { display: inline-block; width: 8px; height: 8px; background: #10b981; border-radius: 50%; margin-right: 6px; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; padding: 24px; }
+        .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+        .card h2 { font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+        .metric { font-size: 2rem; font-weight: 700; color: #f1f5f9; }
+        .metric.green { color: #10b981; }
+        .metric.yellow { color: #fbbf24; }
+        .metric.red { color: #ef4444; }
+        .sub { font-size: 0.75rem; color: #64748b; margin-top: 4px; }
+        .services-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .svc { padding: 8px 12px; background: #0f172a; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; }
+        .svc .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot.up { background: #10b981; }
+        .dot.down { background: #ef4444; }
+        .db-table { width: 100%; margin-top: 12px; font-size: 0.75rem; }
+        .db-table th { text-align: left; color: #64748b; padding: 4px 8px; border-bottom: 1px solid #334155; }
+        .db-table td { padding: 4px 8px; color: #cbd5e1; }
+        .chart-container { height: 80px; position: relative; margin-top: 12px; }
+        .chart-bar { display: flex; align-items: flex-end; gap: 2px; height: 100%; }
+        .chart-bar .bar { flex: 1; background: #3b82f6; border-radius: 2px 2px 0 0; min-height: 2px; transition: height 0.3s; }
+        .wide { grid-column: span 2; }
+        @media (max-width: 900px) { .wide { grid-column: span 1; } .services-grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 StudyPilot Monitor</h1>
+        <div class="status"><span class="live"></span> Live — Updated: <span id="last-update">--:--:--</span></div>
+    </div>
+
+    <div class="grid">
+        <!-- API Gateway Health -->
+        <div class="card">
+            <h2>🌐 API Gateway</h2>
+            <div class="metric" id="api-status">Loading...</div>
+            <div class="sub" id="api-sub">Checking services...</div>
+        </div>
+
+        <!-- Services Status -->
+        <div class="card wide">
+            <h2>🔧 Microservices</h2>
+            <div class="services-grid" id="services-grid">
+                <div class="svc"><span>Loading...</span><span class="dot"></span></div>
+            </div>
+        </div>
+
+        <!-- MySQL -->
+        <div class="card">
+            <h2>🗄️ MySQL</h2>
+            <div class="metric" id="mysql-status">—</div>
+            <div class="sub" id="mysql-info">Connections: — | QPS: —</div>
+            <table class="db-table" id="mysql-dbs">
+                <thead><tr><th>Database</th><th>Size</th><th>Rows</th></tr></thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Redis -->
+        <div class="card">
+            <h2>⚡ Redis</h2>
+            <div class="metric" id="redis-status">—</div>
+            <div class="sub" id="redis-info">Memory: — | Keys: — | Ops/s: —</div>
+            <div class="chart-container">
+                <div class="chart-bar" id="redis-chart"></div>
+            </div>
+        </div>
+
+        <!-- RabbitMQ -->
+        <div class="card">
+            <h2>🐰 RabbitMQ</h2>
+            <div class="metric" id="rabbit-status">—</div>
+            <div class="sub" id="rabbit-info">Queues: — | Messages: — | Publish rate: —</div>
+        </div>
+
+        <!-- Performance -->
+        <div class="card">
+            <h2>📈 MySQL QPS</h2>
+            <div class="metric" id="qps-value">—</div>
+            <div class="sub">Queries per second</div>
+            <div class="chart-container">
+                <div class="chart-bar" id="qps-chart"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateDashboard() {
+            fetch('/api/metrics')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('last-update').textContent = data.last_update || '--:--:--';
+
+                    // API Status
+                    const api = data.api_health || {};
+                    const apiEl = document.getElementById('api-status');
+                    apiEl.textContent = (api.status || 'unknown').toUpperCase();
+                    apiEl.className = 'metric ' + (api.status === 'healthy' ? 'green' : 'red');
+                    const svcs = api.services || {};
+                    const healthy = Object.values(svcs).filter(s => s === 'healthy').length;
+                    document.getElementById('api-sub').textContent = `${healthy}/${Object.keys(svcs).length} services healthy`;
+
+                    // Services grid
+                    const grid = document.getElementById('services-grid');
+                    grid.innerHTML = Object.entries(svcs).map(([name, status]) =>
+                        `<div class="svc"><span>${name}</span><span class="dot ${status === 'healthy' ? 'up' : 'down'}"></span></div>`
+                    ).join('');
+
+                    // MySQL
+                    const mysql = data.mysql || {};
+                    const mysqlEl = document.getElementById('mysql-status');
+                    mysqlEl.textContent = mysql.status === 'connected' ? `${mysql.connections} conn` : 'DOWN';
+                    mysqlEl.className = 'metric ' + (mysql.status === 'connected' ? 'green' : 'red');
+                    document.getElementById('mysql-info').textContent = `QPS: ${mysql.qps || 0} | Slow: ${mysql.slow_queries || 0} | Uptime: ${Math.round((mysql.uptime_seconds || 0) / 60)}min`;
+
+                    // MySQL databases table
+                    const dbBody = document.querySelector('#mysql-dbs tbody');
+                    dbBody.innerHTML = (mysql.databases || []).map(db =>
+                        `<tr><td>${db.name.replace('studypilot_','')}</td><td>${db.size_mb}MB</td><td>${db.rows}</td></tr>`
+                    ).join('');
+
+                    // Redis
+                    const rd = data.redis || {};
+                    const redisEl = document.getElementById('redis-status');
+                    redisEl.textContent = rd.status === 'connected' ? `${rd.memory_used_mb}MB` : 'DOWN';
+                    redisEl.className = 'metric ' + (rd.status === 'connected' ? 'green' : 'red');
+                    document.getElementById('redis-info').textContent = `Clients: ${rd.connected_clients || 0} | Keys: ${rd.total_keys || 0} | ${rd.ops_per_sec || 0} ops/s`;
+
+                    // RabbitMQ
+                    const rb = data.rabbitmq || {};
+                    const rabbitEl = document.getElementById('rabbit-status');
+                    rabbitEl.textContent = rb.status === 'connected' ? `${rb.queues || 0} queues` : 'DOWN';
+                    rabbitEl.className = 'metric ' + (rb.status === 'connected' ? 'green' : 'red');
+                    document.getElementById('rabbit-info').textContent = `Ready: ${rb.messages_ready || 0} | Unacked: ${rb.messages_unacked || 0} | Pub: ${rb.publish_rate || 0}/s`;
+
+                    // QPS
+                    document.getElementById('qps-value').textContent = mysql.qps || 0;
+
+                    // Charts (history)
+                    const history = data.history || [];
+                    renderChart('qps-chart', history.map(h => h.mysql_qps), 50);
+                    renderChart('redis-chart', history.map(h => h.redis_ops), 100);
+                })
+                .catch(() => {
+                    document.getElementById('api-status').textContent = 'OFFLINE';
+                    document.getElementById('api-status').className = 'metric red';
+                });
+        }
+
+        function renderChart(id, values, maxVal) {
+            const el = document.getElementById(id);
+            if (!values.length) return;
+            const max = Math.max(maxVal, ...values);
+            el.innerHTML = values.map(v =>
+                `<div class="bar" style="height:${Math.max(2, (v / max) * 100)}%"></div>`
+            ).join('');
+        }
+
+        // Poll every 2 seconds
+        updateDashboard();
+        setInterval(updateDashboard, 2000);
+    </script>
+</body>
+</html>

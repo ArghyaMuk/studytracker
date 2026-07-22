@@ -180,5 +180,28 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  # Monitoring Dashboard (independent service)
+  monitor-dashboard:
+    build:
+      context: ./services/monitor-dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "9000:9000"
+    environment:
+      - API_GATEWAY_URL=http://api-gateway:8000
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=password
+      - REDIS_URL=redis://redis:6379/0
+      - RABBITMQ_API=http://rabbitmq:15672/api
+      - RABBITMQ_USER=arghya
+      - RABBITMQ_PASS=arghya
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
 volumes:
   mysql_data:

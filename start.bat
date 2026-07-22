@@ -114,7 +114,8 @@ echo  ============================================================
 echo.
 echo   Frontend:       http://localhost:3000
 echo   Backend API:    http://localhost:8000
-echo   RabbitMQ UI:    http://localhost:15672 (guest/guest)
+echo   Monitor:        http://localhost:9000
+echo   RabbitMQ UI:    http://localhost:15672 (arghya/arghya)
 echo.
 echo   Admin Login:    (see .env file for credentials)
 echo   Student:        Register at http://localhost:3000/register
